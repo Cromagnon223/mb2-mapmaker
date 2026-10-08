@@ -1,0 +1,539 @@
+<title>MB2 Map Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one-screen tool. Top bar, then a wide 2D plan canvas beside a control rail; the rail drops below on phones. */
+:root {
+  color-scheme: dark;
+  --bg: #0f1317; --panel: #171d23; --raise: #1f272f; --line: #2b3540;
+  --fg: #e1e7ee; --muted: #8d9aa8; --accent: #5fd3b6; --accent-ink: #0b2a23;
+  --imp: #d05a5a; --reb: #5a95d0; --ffa: #a184d6; --lamp: #f0cf6a;
+  --bad: #ef6b6b; --warn: #e9b04f; --good: #5fd3b6;
+  --display: "Oxanium", "Segoe UI", system-ui, sans-serif;
+  --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); display: flex; flex-direction: column; }
+button, input, select { font: inherit; color: inherit; }
+button { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+input, select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font: 700 18px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+header h1 span { color: var(--accent); }
+header .grow { flex: 1; }
+header label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+header input { width: 140px; }
+header button { padding: 5px 9px; font-size: 13px; }
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 330px; min-height: 0; }
+#planWrap { position: relative; min-width: 0; min-height: 0; }
+#plan { width: 100%; height: 100%; display: block; touch-action: none; background: var(--bg); }
+#hint { position: absolute; left: 12px; bottom: 10px; font: 12px var(--mono); color: var(--muted); background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 4px 8px; border-radius: 4px; pointer-events: none; }
+aside { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding-block: 12px; padding-inline: 14px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font: 600 11px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tools button { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 7px 8px; }
+.tools button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--raise)); }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
+.field input, .field select { color: var(--fg); width: 100%; box-sizing: border-box; }
+.check-line { display: flex; align-items: center; gap: 6px; font-size: 13px; }
+#checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
+#checks li { display: flex; gap: 8px; align-items: baseline; }
+#checks li::before { content: ""; width: 8px; height: 8px; border-radius: 2px; flex: none; transform: translateY(-1px); }
+#checks li.bad::before { background: var(--bad); }
+#checks li.warn::before { background: var(--warn); }
+#checks li.good::before { background: var(--good); }
+#view3d { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; border: 1px solid var(--line); background: #0a0d10; display: block; touch-action: none; max-width: 100%; }
+.stats { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.actions { display: flex; flex-wrap: wrap; gap: 6px; }
+#msg { font-size: 13px; color: var(--accent); min-height: 1em; }
+#fallback { width: 100%; height: 120px; font: 11px var(--mono); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
+.small { font-size: 12px; color: var(--muted); }
+@media (max-width: 760px) {
+  body { height: auto; }
+  main { grid-template-columns: 1fr; }
+  #planWrap { height: 62vh; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  header input { width: 120px; }
+}
+</style>
+
+<header>
+  <h1>MB2 <span>Map Maker</span></h1>
+  <label for="mapTitle">Map name <input id="mapTitle" value="Twin Hangars"></label>
+  <label for="mapFile">File name <input id="mapFile" value="mb2_twinhangars" spellcheck="false"></label>
+  <div class="grow"></div>
+  <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
+  <button id="newMap">New</button>
+  <button id="sample">Sample map</button>
+  <button id="saveProject">Save project</button>
+  <button id="openProject">Open project</button>
+  <input id="openFile" type="file" accept=".json,application/json" hidden>
+  <button id="exportZip" class="primary">Export for Radiant</button>
+</header>
+
+<main>
+  <div id="planWrap">
+    <canvas id="plan" aria-label="Top-down map plan"></canvas>
+    <div id="hint">Drag to paint rooms · right-drag or two fingers to pan · wheel to zoom</div>
+  </div>
+  <aside>
+    <section>
+      <h2>Tools</h2>
+      <div class="tools" id="tools">
+        <button data-tool="room" aria-pressed="true"><span class="dot" style="background:var(--accent)"></span>Room</button>
+        <button data-tool="erase" aria-pressed="false"><span class="dot" style="background:var(--muted)"></span>Wall</button>
+        <button data-tool="select" aria-pressed="false"><span class="dot" style="background:var(--fg)"></span>Move</button>
+        <button data-tool="imperial" aria-pressed="false"><span class="dot" style="background:var(--imp)"></span>Imperial</button>
+        <button data-tool="rebel" aria-pressed="false"><span class="dot" style="background:var(--reb)"></span>Rebel</button>
+        <button data-tool="ffa" aria-pressed="false"><span class="dot" style="background:var(--ffa)"></span>FFA</button>
+        <button data-tool="light" aria-pressed="false"><span class="dot" style="background:var(--lamp)"></span>Light</button>
+        <button data-tool="pick" aria-pressed="false"><span class="dot" style="background:var(--warn)"></span>Copy</button>
+      </div>
+    </section>
+
+    <section>
+      <h2>Room brush</h2>
+      <div class="row">
+        <label class="field" for="floorH">Floor height<input id="floorH" type="number" step="16" value="0"></label>
+        <label class="field" for="ceilH">Ceiling height<input id="ceilH" type="number" step="16" value="256"></label>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="field" for="theme">Look<select id="theme"></select></label>
+        <label class="check-line" for="sky" style="align-self:end;padding-bottom:6px"><input id="sky" type="checkbox"> Open sky</label>
+      </div>
+      <p class="small" style="margin:8px 0 0">Units are game units: a player is about 64 tall, so keep ceilings at 128 or more.</p>
+    </section>
+
+    <section id="entPanel" hidden>
+      <h2>Selected</h2>
+      <div class="row">
+        <label class="field" for="entAngle">Facing (degrees)<input id="entAngle" type="number" step="45"></label>
+        <label class="field" for="entLight">Brightness<input id="entLight" type="number" step="50"></label>
+      </div>
+      <div class="actions" style="margin-top:8px"><button id="entDelete">Delete</button></div>
+    </section>
+
+    <section>
+      <h2>3D preview</h2>
+      <canvas id="view3d" aria-label="3D preview"></canvas>
+      <p class="stats" id="stats"></p>
+    </section>
+
+    <section>
+      <h2>Ready to play?</h2>
+      <ul id="checks"></ul>
+    </section>
+
+    <section>
+      <h2>Export</h2>
+      <div class="actions">
+        <label class="check-line" for="autoLights"><input id="autoLights" type="checkbox" checked> Add lights automatically</label>
+        <label class="check-line" for="ctfSpawns"><input id="ctfSpawns" type="checkbox" checked> Add CTF backup spawns</label>
+      </div>
+      <div class="actions" style="margin-top:8px">
+        <button id="copyMap">Copy .map text</button>
+        <button id="resetTex">Textures…</button>
+      </div>
+      <p id="msg" role="status"></p>
+      <textarea id="fallback" hidden readonly aria-label=".map text"></textarea>
+      <div id="texPanel" hidden>
+        <p class="small">Texture names used on export. Change any that show as missing in Radiant.</p>
+        <div id="texFields" style="display:flex;flex-direction:column;gap:6px"></div>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="mapgen.js"></script>
+<script>
+(function () {
+'use strict';
+var G = window.MapGen;
+var $ = function (id) { return document.getElementById(id); };
+var KEY = 'mb2mapmaker.project.v1';
+
+// ---------- state ----------
+var state, history = [];
+function blank(w, h) {
+  return { name: 'mb2_newmap', title: 'New Map', cell: 64, w: w || 40, h: h || 28, cells: new Array((w || 40) * (h || 28)).fill(null), ents: [],
+    themes: JSON.parse(JSON.stringify(G.THEMES)), sky: G.SKY };
+}
+function sample() {
+  var s = blank(40, 28); s.name = 'mb2_twinhangars'; s.title = 'Twin Hangars';
+  function room(x, y, w, h, f, c, t, sky) { for (var j = y; j < y + h; j++) for (var i = x; i < x + w; i++) s.cells[j * s.w + i] = { f: f, c: c, t: t, sky: !!sky }; }
+  room(2, 8, 9, 12, 0, 320, 'imperial');          // Imperial hangar
+  room(29, 8, 9, 12, 0, 320, 'rebel');            // Rebel hangar
+  room(11, 12, 4, 4, 0, 192, 'imperial');         // west corridor
+  room(25, 12, 4, 4, 0, 192, 'rebel');            // east corridor
+  room(15, 6, 10, 16, 0, 512, 'desert', true);    // open courtyard
+  room(18, 11, 4, 6, 48, 512, 'desert', true);    // raised platform
+  room(17, 2, 6, 4, 32, 224, 'imperial');         // north balcony
+  room(19, 22, 2, 3, 0, 192, 'rebel');            // south tunnel
+  room(16, 25, 8, 2, 0, 192, 'rebel');
+  [[4, 10], [4, 13], [4, 16], [7, 11], [7, 15]].forEach(function (p) { s.ents.push({ type: 'imperial', x: p[0] + .5, y: p[1] + .5, angle: 0 }); });
+  [[35, 10], [35, 13], [35, 16], [32, 11], [32, 15]].forEach(function (p) { s.ents.push({ type: 'rebel', x: p[0] + .5, y: p[1] + .5, angle: 180 }); });
+  s.ents.push({ type: 'ffa', x: 20, y: 14, angle: 90 });
+  return s;
+}
+function load() {
+  try { var raw = localStorage.getItem(KEY); if (raw) { var s = JSON.parse(raw); if (s && s.cells) return s; } } catch (e) {}
+  return sample();
+}
+var saveTimer;
+function persist() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }, 300);
+}
+function snapshot() { history.push(JSON.stringify(state)); if (history.length > 80) history.shift(); }
+function changed() { persist(); drawPlan(); refreshChecks(); schedule3d(); }
+
+// ---------- tools ----------
+var tool = 'room', selected = -1;
+$('tools').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  tool = b.dataset.tool;
+  Array.prototype.forEach.call($('tools').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+  $('hint').textContent = {
+    room: 'Drag to paint rooms with the brush settings', erase: 'Drag to turn floor back into solid wall',
+    select: 'Drag a marker to move it · Delete key removes it', pick: 'Click a room to copy its heights and look',
+    imperial: 'Click to place an Imperial spawn', rebel: 'Click to place a Rebel spawn', ffa: 'Click to place a free-for-all spawn', light: 'Click to place a light'
+  }[tool] + ' · right-drag to pan · wheel to zoom';
+});
+function brush() { return { f: +$('floorH').value || 0, c: +$('ceilH').value || 256, t: $('theme').value, sky: $('sky').checked }; }
+
+// ---------- 2D plan ----------
+var cv = $('plan'), ctx = cv.getContext('2d');
+var view = { z: 20, ox: 20, oy: 20 };
+var css = getComputedStyle(document.documentElement);
+var col = function (n) { return css.getPropertyValue(n).trim(); };
+var ENT_COLOR = { imperial: col('--imp'), rebel: col('--reb'), ffa: col('--ffa'), light: col('--lamp') };
+var ENT_LETTER = { imperial: 'I', rebel: 'R', ffa: 'F', light: 'L' };
+
+function fit() {
+  var r = cv.getBoundingClientRect();
+  view.z = Math.max(8, Math.floor(Math.min((r.width - 40) / state.w, (r.height - 40) / state.h)));
+  view.ox = (r.width - view.z * state.w) / 2; view.oy = (r.height - view.z * state.h) / 2;
+}
+function resize() {
+  var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+  cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d);
+  ctx.setTransform(d, 0, 0, d, 0, 0); drawPlan();
+}
+function shade(hex, f) {
+  var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
+  var k = Math.max(-0.55, Math.min(0.35, f / 400));
+  var m = function (x) { return Math.round(k < 0 ? x * (1 + k) : x + (255 - x) * k); };
+  return 'rgb(' + m(r) + ',' + m(g) + ',' + m(b) + ')';
+}
+var drag = null;
+function drawPlan() {
+  var r = cv.getBoundingClientRect(), z = view.z;
+  ctx.clearRect(0, 0, r.width, r.height);
+  ctx.fillStyle = '#161b21'; ctx.fillRect(view.ox, view.oy, state.w * z, state.h * z);
+  for (var j = 0; j < state.h; j++) for (var i = 0; i < state.w; i++) {
+    var c = state.cells[j * state.w + i]; if (!c) continue;
+    var th = G.themeById(state, c.t);
+    ctx.fillStyle = shade(th.color, c.f - 40);
+    ctx.fillRect(view.ox + i * z, view.oy + j * z, z, z);
+    if (c.sky) { ctx.fillStyle = 'rgba(140,200,255,.55)'; ctx.fillRect(view.ox + i * z + z / 2 - 1, view.oy + j * z + z / 2 - 1, 2, 2); }
+  }
+  // room edges: draw a strong line where floor height changes or a wall begins
+  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2; ctx.beginPath();
+  for (j = 0; j < state.h; j++) for (i = 0; i < state.w; i++) {
+    c = state.cells[j * state.w + i];
+    var rt = i + 1 < state.w ? state.cells[j * state.w + i + 1] : null, dn = j + 1 < state.h ? state.cells[(j + 1) * state.w + i] : null;
+    if (!!c !== !!rt || (c && rt && c.f !== rt.f)) { ctx.moveTo(view.ox + (i + 1) * z, view.oy + j * z); ctx.lineTo(view.ox + (i + 1) * z, view.oy + (j + 1) * z); }
+    if (!!c !== !!dn || (c && dn && c.f !== dn.f)) { ctx.moveTo(view.ox + i * z, view.oy + (j + 1) * z); ctx.lineTo(view.ox + (i + 1) * z, view.oy + (j + 1) * z); }
+  }
+  ctx.stroke();
+  if (z >= 10) {
+    ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (i = 0; i <= state.w; i++) { ctx.moveTo(view.ox + i * z + .5, view.oy); ctx.lineTo(view.ox + i * z + .5, view.oy + state.h * z); }
+    for (j = 0; j <= state.h; j++) { ctx.moveTo(view.ox, view.oy + j * z + .5); ctx.lineTo(view.ox + state.w * z, view.oy + j * z + .5); }
+    ctx.stroke();
+  }
+  // height labels on big zoom
+  if (z >= 26) {
+    ctx.font = '10px "IBM Plex Mono", monospace'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    for (j = 0; j < state.h; j++) for (i = 0; i < state.w; i++) { c = state.cells[j * state.w + i]; if (c && c.f) ctx.fillText(c.f, view.ox + i * z + 3, view.oy + j * z + 2); }
+  }
+  if (drag && drag.rect) {
+    var a = drag.rect;
+    ctx.fillStyle = tool === 'erase' ? 'rgba(0,0,0,.45)' : 'rgba(95,211,182,.25)';
+    ctx.strokeStyle = col('--accent'); ctx.lineWidth = 2;
+    ctx.fillRect(view.ox + a.x0 * z, view.oy + a.y0 * z, (a.x1 - a.x0 + 1) * z, (a.y1 - a.y0 + 1) * z);
+    ctx.strokeRect(view.ox + a.x0 * z, view.oy + a.y0 * z, (a.x1 - a.x0 + 1) * z, (a.y1 - a.y0 + 1) * z);
+  }
+  state.ents.forEach(function (e, k) {
+    var x = view.ox + e.x * z, y = view.oy + e.y * z, rad = Math.max(6, z * .38);
+    ctx.fillStyle = ENT_COLOR[e.type]; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
+    if (k === selected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
+    if (e.type !== 'light') {
+      var an = -(e.angle || 0) * Math.PI / 180;
+      ctx.strokeStyle = ENT_COLOR[e.type]; ctx.lineWidth = 2; ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(an) * rad * 1.8, y + Math.sin(an) * rad * 1.8); ctx.stroke();
+    }
+    ctx.fillStyle = '#0b0e11'; ctx.font = '600 ' + Math.round(rad * 1.1) + 'px "IBM Plex Sans", sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ENT_LETTER[e.type], x, y + 1);
+  });
+}
+function toCell(ev) {
+  var r = cv.getBoundingClientRect();
+  return { x: (ev.clientX - r.left - view.ox) / view.z, y: (ev.clientY - r.top - view.oy) / view.z };
+}
+function inGrid(p) { return p.x >= 0 && p.y >= 0 && p.x < state.w && p.y < state.h; }
+function hitEnt(p) {
+  for (var k = state.ents.length - 1; k >= 0; k--) { var e = state.ents[k]; if (Math.hypot(e.x - p.x, e.y - p.y) < .6) return k; }
+  return -1;
+}
+var pointers = new Map();
+cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+cv.addEventListener('pointerdown', function (ev) {
+  cv.setPointerCapture(ev.pointerId); pointers.set(ev.pointerId, ev);
+  var p = toCell(ev);
+  if (ev.button === 2 || ev.button === 1 || pointers.size > 1) { drag = { pan: true, sx: ev.clientX, sy: ev.clientY, ox: view.ox, oy: view.oy }; drawPlan(); return; }
+  if (tool === 'room' || tool === 'erase') {
+    if (!inGrid(p)) return;
+    var cx = Math.floor(p.x), cy = Math.floor(p.y);
+    drag = { paint: true, ax: cx, ay: cy, rect: { x0: cx, y0: cy, x1: cx, y1: cy } }; drawPlan();
+  } else if (tool === 'select') {
+    selected = hitEnt(p); showEnt();
+    if (selected >= 0) { snapshot(); drag = { move: selected }; }
+    drawPlan();
+  } else if (tool === 'pick') {
+    var c = inGrid(p) && state.cells[Math.floor(p.y) * state.w + Math.floor(p.x)];
+    if (c) { $('floorH').value = c.f; $('ceilH').value = c.c; $('theme').value = c.t; $('sky').checked = !!c.sky; say('Copied that room into the brush.'); }
+  } else if (inGrid(p)) {
+    snapshot();
+    var e = { type: tool, x: Math.round(p.x * 2) / 2, y: Math.round(p.y * 2) / 2, angle: tool === 'rebel' ? 180 : 0 };
+    if (tool === 'light') e.light = 300;
+    state.ents.push(e); selected = state.ents.length - 1; showEnt(); changed();
+  }
+});
+cv.addEventListener('pointermove', function (ev) {
+  if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, ev);
+  if (!drag) return;
+  if (drag.pan) { view.ox = drag.ox + ev.clientX - drag.sx; view.oy = drag.oy + ev.clientY - drag.sy; drawPlan(); return; }
+  var p = toCell(ev);
+  if (drag.paint) {
+    var cx = Math.max(0, Math.min(state.w - 1, Math.floor(p.x))), cy = Math.max(0, Math.min(state.h - 1, Math.floor(p.y)));
+    drag.rect = { x0: Math.min(drag.ax, cx), y0: Math.min(drag.ay, cy), x1: Math.max(drag.ax, cx), y1: Math.max(drag.ay, cy) }; drawPlan();
+  } else if (drag.move !== undefined) {
+    var e = state.ents[drag.move];
+    e.x = Math.max(0, Math.min(state.w, Math.round(p.x * 2) / 2)); e.y = Math.max(0, Math.min(state.h, Math.round(p.y * 2) / 2)); drawPlan();
+  }
+});
+function endPointer(ev) {
+  pointers.delete(ev.pointerId);
+  if (!drag) return;
+  if (drag.paint) {
+    snapshot();
+    var a = drag.rect, b = tool === 'erase' ? null : brush();
+    for (var j = a.y0; j <= a.y1; j++) for (var i = a.x0; i <= a.x1; i++) state.cells[j * state.w + i] = b ? { f: b.f, c: b.c, t: b.t, sky: b.sky } : null;
+  }
+  var was = drag; drag = null;
+  if (!was.pan) changed(); else drawPlan();
+}
+cv.addEventListener('pointerup', endPointer);
+cv.addEventListener('pointercancel', endPointer);
+cv.addEventListener('wheel', function (ev) {
+  ev.preventDefault();
+  var r = cv.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
+  var nz = Math.max(6, Math.min(80, view.z * (ev.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  view.ox = mx - (mx - view.ox) * nz / view.z; view.oy = my - (my - view.oy) * nz / view.z; view.z = nz; drawPlan();
+}, { passive: false });
+
+// ---------- selected entity ----------
+function showEnt() {
+  var e = state.ents[selected];
+  $('entPanel').hidden = !e;
+  if (!e) return;
+  $('entAngle').value = e.angle || 0; $('entAngle').disabled = e.type === 'light';
+  $('entLight').value = e.light || 300; $('entLight').disabled = e.type !== 'light';
+}
+$('entAngle').addEventListener('change', function () { var e = state.ents[selected]; if (e) { snapshot(); e.angle = +this.value || 0; changed(); } });
+$('entLight').addEventListener('change', function () { var e = state.ents[selected]; if (e) { snapshot(); e.light = +this.value || 300; changed(); } });
+function deleteSelected() { if (selected < 0) return; snapshot(); state.ents.splice(selected, 1); selected = -1; showEnt(); changed(); }
+$('entDelete').addEventListener('click', deleteSelected);
+document.addEventListener('keydown', function (ev) {
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected >= 0) { ev.preventDefault(); deleteSelected(); }
+  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }
+  if (ev.key.toLowerCase() === 'r' && selected >= 0 && state.ents[selected].type !== 'light') { snapshot(); state.ents[selected].angle = ((state.ents[selected].angle || 0) + 45) % 360; showEnt(); changed(); }
+});
+function undo() { var s = history.pop(); if (!s) return say('Nothing to undo.'); state = JSON.parse(s); selected = -1; showEnt(); syncHeader(); changed(); }
+$('undo').addEventListener('click', undo);
+
+// ---------- header + settings ----------
+function syncHeader() { $('mapTitle').value = state.title; $('mapFile').value = state.name; fillThemes(); }
+$('mapTitle').addEventListener('input', function () { state.title = this.value; changed(); });
+$('mapFile').addEventListener('input', function () { state.name = this.value.trim(); changed(); });
+function fillThemes() {
+  var sel = $('theme'), keep = sel.value;
+  sel.innerHTML = '';
+  state.themes.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
+  if (keep && state.themes.some(function (t) { return t.id === keep; })) sel.value = keep;
+  var box = $('texFields'); box.innerHTML = '';
+  function field(label, obj, key, id) {
+    var l = document.createElement('label'); l.className = 'field'; l.htmlFor = id; l.textContent = label;
+    var i = document.createElement('input'); i.id = id; i.value = obj[key]; i.spellcheck = false;
+    i.addEventListener('change', function () { snapshot(); obj[key] = i.value.trim(); changed(); });
+    l.appendChild(i); box.appendChild(l);
+  }
+  state.themes.forEach(function (t) {
+    ['floor', 'wall', 'ceil'].forEach(function (k) { field(t.name + ' · ' + k, t, k, 'tex-' + t.id + '-' + k); });
+  });
+  field('Sky', state, 'sky', 'tex-sky');
+}
+$('resetTex').addEventListener('click', function () { $('texPanel').hidden = !$('texPanel').hidden; });
+$('newMap').addEventListener('click', function () { snapshot(); state = blank(); selected = -1; showEnt(); syncHeader(); fit(); changed(); say('Started a blank map. Undo brings the old one back.'); });
+$('sample').addEventListener('click', function () { snapshot(); state = sample(); selected = -1; showEnt(); syncHeader(); fit(); changed(); });
+
+// ---------- checks ----------
+function refreshChecks() {
+  var notes = G.check(state), ul = $('checks'); ul.innerHTML = '';
+  if (!notes.length) notes = [{ level: 'good', text: 'Looks playable. Export and compile it.' }];
+  notes.slice(0, 8).forEach(function (n) { var li = document.createElement('li'); li.className = n.level; li.textContent = n.text; ul.appendChild(li); });
+  var count = function (t) { return state.ents.filter(function (e) { return e.type === t; }).length; };
+  $('stats').textContent = G.buildBrushes(state).length + ' brushes · ' + count('imperial') + ' Imperial · ' + count('rebel') + ' Rebel spawns · ' + state.w + '×' + state.h + ' grid of 64u';
+}
+
+// ---------- export ----------
+function say(t) { $('msg').textContent = t; }
+function opts() { return { autoLights: $('autoLights').checked, ctfSpawns: $('ctfSpawns').checked }; }
+function readme() {
+  return [
+    state.title + ' (' + state.name + ') - made with MB2 Map Maker', '',
+    'What is inside:',
+    '  maps/' + state.name + '.map      the level, ready for GtkRadiant / JKRadiant / NetRadiant',
+    '  scripts/' + state.name + '.arena  makes the map show up in the MB2 map list', '',
+    'To play it:',
+    '  1. Open maps/' + state.name + '.map in Radiant (set up for Jedi Academy).',
+    '  2. Build > BSP (full / -meta -vis -light). This makes ' + state.name + '.bsp.',
+    '  3. Zip maps/' + state.name + '.bsp and scripts/' + state.name + '.arena into ' + state.name + '.pk3',
+    '     and put it in GameData/MBII.',
+    '  4. In game: /map ' + state.name, '',
+    'Texture names can be changed in the editor under Export > Textures.'
+  ].join('\r\n');
+}
+var downloads = null;
+if (window.claude && window.claude.use) window.claude.use('downloads').then(function (d) { downloads = d; }, function () {});
+$('exportZip').addEventListener('click', function () {
+  var bad = G.check(state).filter(function (n) { return n.level === 'bad'; });
+  if (bad.length) say('Heads up: ' + bad[0].text + ' Exporting anyway.');
+  var zip = new JSZip();
+  zip.file('maps/' + state.name + '.map', G.generateMap(state, opts()));
+  zip.file('scripts/' + state.name + '.arena', G.generateArena(state));
+  zip.file('README.txt', readme());
+  zip.generateAsync({ type: 'blob' }).then(function (blob) {
+    if (downloads) {
+      return downloads.save({ filename: state.name + '.zip', data: blob }).then(function () { say('Saved ' + state.name + '.zip.'); }, function (err) {
+        if (err && err.code === 'declined') say('Save cancelled.'); else showFallback('Saving files is not available here, so the .map text is below.');
+      });
+    }
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = state.name + '.zip'; a.click();
+    say('Downloading ' + state.name + '.zip. If nothing happens, use Copy .map text.');
+  });
+});
+function showFallback(t) { var f = $('fallback'); f.hidden = false; f.value = G.generateMap(state, opts()); say(t); }
+$('copyMap').addEventListener('click', function () {
+  var text = G.generateMap(state, opts());
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { say('Copied. Paste it into a file named ' + state.name + '.map.'); }, function () { showFallback('Select the text below and copy it.'); $('fallback').select(); });
+  else { showFallback('Select the text below and copy it.'); $('fallback').select(); }
+});
+$('saveProject').addEventListener('click', function () {
+  var data = JSON.stringify(state);
+  if (downloads) downloads.save({ filename: state.name + '.json', data: data }).then(function () { say('Project saved.'); }, function () { say('Project not saved. Your work is still kept in this browser.'); });
+  else { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = state.name + '.json'; a.click(); }
+});
+$('openProject').addEventListener('click', function () { $('openFile').click(); });
+$('openFile').addEventListener('change', function () {
+  var f = this.files[0]; if (!f) return;
+  f.text().then(function (t) {
+    var s = JSON.parse(t); if (!s.cells || !s.w) throw new Error('not a project');
+    snapshot(); state = s; if (!state.themes) state.themes = JSON.parse(JSON.stringify(G.THEMES)); if (!state.sky) state.sky = G.SKY;
+    selected = -1; showEnt(); syncHeader(); fit(); changed(); say('Opened ' + f.name + '.');
+  }).catch(function () { say('That file is not an MB2 Map Maker project (.json).'); });
+  this.value = '';
+});
+
+// ---------- 3D preview ----------
+var v3 = $('view3d'), renderer = null, scene, camera, group, orbit = { yaw: .7, pitch: .85, dist: 1 };
+function init3d() {
+  if (!window.THREE) { $('stats').textContent = '3D preview could not load.'; return; }
+  renderer = new THREE.WebGLRenderer({ canvas: v3, antialias: true });
+  renderer.setPixelRatio(window.devicePixelRatio || 1);
+  scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0d10);
+  camera = new THREE.PerspectiveCamera(50, 4 / 3, 10, 40000);
+  scene.add(new THREE.HemisphereLight(0xdde8ff, 0x202020, .85));
+  var sun = new THREE.DirectionalLight(0xffffff, .6); sun.position.set(.5, 1, .3); scene.add(sun);
+  var drag3 = null;
+  v3.addEventListener('pointerdown', function (e) { v3.setPointerCapture(e.pointerId); drag3 = { x: e.clientX, y: e.clientY }; });
+  v3.addEventListener('pointermove', function (e) {
+    if (!drag3) return;
+    orbit.yaw -= (e.clientX - drag3.x) * .01; orbit.pitch = Math.max(.15, Math.min(1.5, orbit.pitch + (e.clientY - drag3.y) * .01));
+    drag3 = { x: e.clientX, y: e.clientY }; render3d();
+  });
+  v3.addEventListener('pointerup', function () { drag3 = null; });
+  v3.addEventListener('wheel', function (e) { e.preventDefault(); orbit.dist = Math.max(.25, Math.min(3, orbit.dist * (e.deltaY < 0 ? .9 : 1.1))); render3d(); }, { passive: false });
+}
+var t3;
+function schedule3d() { clearTimeout(t3); t3 = setTimeout(build3d, 120); }
+function build3d() {
+  if (!renderer) return;
+  if (group) { scene.remove(group); group.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); }
+  group = new THREE.Group();
+  var b = G.bounds(state), S = state.cell, mats = {};
+  function mat(hex) { return mats[hex] || (mats[hex] = new THREE.MeshLambertMaterial({ color: hex })); }
+  function box(x0, y0, x1, y1, z0, z1, color) {
+    var g = new THREE.BoxGeometry(x1 - x0, z1 - z0, y1 - y0), m = new THREE.Mesh(g, mat(color));
+    m.position.set((x0 + x1) / 2, (z0 + z1) / 2, (y0 + y1) / 2); group.add(m);
+  }
+  var cellKey = function (i, j) { var c = G.cellAt(state, i, j); return c ? c.f + '|' + c.t : null; };
+  G.mergeRects(0, 0, state.w, state.h, cellKey).forEach(function (r) {
+    var c = G.cellAt(state, r.i, r.j), th = G.themeById(state, c.t);
+    box(r.i * S, r.j * S, (r.i + r.w) * S, (r.j + r.h) * S, b.zMin, c.f, shade(th.color, c.f - 40));
+  });
+  var top = Math.min(b.zMax, b.zMin + 400);
+  G.mergeRects(-1, -1, state.w + 1, state.h + 1, function (i, j) {
+    if (G.cellAt(state, i, j)) return null;
+    for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) { var n = G.cellAt(state, i + di, j + dj); if (n) return n.t; }
+    return null;
+  }).forEach(function (r) {
+    box(r.i * S, r.j * S, (r.i + r.w) * S, (r.j + r.h) * S, b.zMin, top, shade(G.themeById(state, r.key).color, -160));
+  });
+  state.ents.forEach(function (e) {
+    var c = G.cellAt(state, Math.floor(e.x), Math.floor(e.y)) || { f: 0, c: 128 };
+    var h = e.type === 'light' ? 16 : 64, z = e.type === 'light' ? Math.min(c.c, top) - 40 : c.f;
+    var m = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, h, 12), new THREE.MeshBasicMaterial({ color: ENT_COLOR[e.type] }));
+    m.position.set(e.x * S, z + h / 2, e.y * S); group.add(m);
+  });
+  scene.add(group); render3d();
+}
+function render3d() {
+  if (!renderer) return;
+  var r = v3.getBoundingClientRect(); if (!r.width) return;
+  renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+  var S = state.cell, cx = state.w * S / 2, cz = state.h * S / 2, d = Math.max(state.w, state.h) * S * 1.1 * orbit.dist;
+  camera.position.set(cx + Math.cos(orbit.yaw) * Math.cos(orbit.pitch) * d, Math.sin(orbit.pitch) * d, cz + Math.sin(orbit.yaw) * Math.cos(orbit.pitch) * d);
+  camera.lookAt(cx, 0, cz); renderer.render(scene, camera);
+}
+
+// ---------- boot ----------
+state = load();
+if (!state.themes) state.themes = JSON.parse(JSON.stringify(G.THEMES));
+if (!state.sky) state.sky = G.SKY;
+syncHeader();
+init3d();
+window.addEventListener('resize', function () { resize(); render3d(); });
+requestAnimationFrame(function () { resize(); fit(); drawPlan(); refreshChecks(); build3d(); });
+})();
+</script>
