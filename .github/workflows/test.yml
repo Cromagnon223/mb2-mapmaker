@@ -8,3 +8,4 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: node tests/mapgen.test.js
+      - run: node tests/bsp.test.js
