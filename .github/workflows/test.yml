@@ -7,5 +7,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
-      - run: node tests/mapgen.test.js
-      - run: node tests/bsp.test.js
+      - id: ojk
+        run: echo "rev=$(git ls-remote https://github.com/JACoders/OpenJK refs/heads/master | cut -c1-12)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .cache/openjk
+            .cache/openjk-src
+          key: openjk-${{ runner.os }}-${{ steps.ojk.outputs.rev }}
+      - run: tests/run.sh --engine
