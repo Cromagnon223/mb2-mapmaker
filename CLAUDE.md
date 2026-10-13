@@ -20,3 +20,14 @@ A map maker for the Movie Battles 2 mod of Star Wars Jedi Knight: Jedi Academy.
 - Cloud sessions can't load plugins; the helper agents are in .claude/agents. Past lessons: https://github.com/Cromagnon223/agent-kit/blob/main/plugins/agent-kit/lessons.md
 - Kyle never merges: once a PR an agent opened in Kyle's own repos has green checks (or no CI), no merge conflicts and no open review threads, the agent squash-merges it itself and tells Kyle in one plain line. If checks fail, fix and re-push first; never merge red. Never merge other people's PRs or repos Kyle doesn't own, never force-push, rewrite history or skip checks. Production deploys are not covered. (Cloud: use the GitHub MCP merge_pull_request tool with squash.)
 <!-- agent-kit:end -->
+
+## MB2 workflow (lessons from the One Piece decomp)
+- Checks: `tests/run.sh` (unit tests, seconds) and `tests/run.sh --engine` (also loads the compiled sample map in a real OpenJK dedicated server; built once, then cached in `.cache/`). Each prints one line per check; full output is in `.cache/test.log`. Read the tail, never paste whole logs into context.
+- Test against the real engine early: `tools/loadtest.sh any.bsp` gives PASS/FAIL in under a second once cached. Don't call a compiler change done on node tests alone.
+- No guessing: every format fact goes in `docs/FORMAT-NOTES.md` as confirmed (source line, data or run) or inferred. Read OpenJK's source (`.cache/openjk-src`, e.g. `codemp/qcommon/qfiles.h`, `cm_load.c`) before inventing a rule.
+- Before a fix, read the callers and the data flag that drive the behaviour; don't tune numbers until the rule is confirmed.
+- Write "Done means" in one line before the first build so scope doesn't arrive one piece at a time.
+- One lead plus at most one helper on this repo; more parallel agents only hit the usage limit sooner. The tester helper (Haiku) runs the checks; big reads go to a helper that returns a 3-5 sentence summary.
+- Agents pass notes through `docs/INBOX.md`, not through coordinator relays.
+- Aim each check at the one thing the change touches (one map, one lump), not a wide sweep.
+- A leftover item that needs an unknown fact is written as "needs fact X" in FORMAT-NOTES and skipped, not guessed.
