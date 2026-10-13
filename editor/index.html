@@ -2,333 +2,417 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oxanium:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one-screen tool. Top bar, then a wide 2D plan canvas beside a control rail; the rail drops below on phones. */
+/* Layout: one-screen tool. Top bar; a big view (top-down plan, 3D, or walk) beside a rail of
+   numbered steps: Build, Teams, Check, Play. The rail drops below the view on phones. */
 :root {
   color-scheme: dark;
-  --bg: #0f1317; --panel: #171d23; --raise: #1f272f; --line: #2b3540;
-  --fg: #e1e7ee; --muted: #8d9aa8; --accent: #5fd3b6; --accent-ink: #0b2a23;
-  --imp: #d05a5a; --reb: #5a95d0; --ffa: #a184d6; --lamp: #f0cf6a;
+  --bg: #0f1317; --panel: #161c22; --raise: #1f272f; --line: #2b3540;
+  --fg: #e3e9ef; --muted: #93a0ad; --accent: #5fd3b6; --accent-ink: #0b2a23;
+  --imp: #d65f5f; --reb: #e09a3e; --ffa: #a184d6; --lamp: #f0cf6a;
   --bad: #ef6b6b; --warn: #e9b04f; --good: #5fd3b6;
   --display: "Oxanium", "Segoe UI", system-ui, sans-serif;
   --body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
 }
 html, body { height: 100%; }
+[hidden] { display: none !important; }
 body { background: var(--bg); color: var(--fg); font: 14px/1.45 var(--body); display: flex; flex-direction: column; }
 button, input, select { font: inherit; color: inherit; }
-button { background: var(--raise); border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; cursor: pointer; }
-button:hover { border-color: var(--muted); }
-button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+button { background: var(--raise); border: 1px solid var(--line); border-radius: 7px; padding: 7px 11px; cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: .45; cursor: default; }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
-input, select { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; }
-header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
-header h1 { font: 700 18px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; margin: 0; }
+input { background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; min-width: 0; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel); }
+header h1 { font: 700 18px/1 var(--display); letter-spacing: .06em; text-transform: uppercase; margin: 0; white-space: nowrap; }
 header h1 span { color: var(--accent); }
 header .grow { flex: 1; }
 header label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
-header input { width: 140px; }
-header button { padding: 5px 9px; font-size: 13px; }
-main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 330px; min-height: 0; }
-#planWrap { position: relative; min-width: 0; min-height: 0; }
-#plan { width: 100%; height: 100%; display: block; touch-action: none; background: var(--bg); }
-#hint { position: absolute; left: 12px; bottom: 10px; font: 12px var(--mono); color: var(--muted); background: color-mix(in srgb, var(--bg) 80%, transparent); padding: 4px 8px; border-radius: 4px; pointer-events: none; }
-aside { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding-block: 12px; padding-inline: 14px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-h2 { font: 600 11px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+#mapTitle { width: 170px; font-weight: 600; }
+.menu { position: relative; }
+.menu-list { position: absolute; right: 0; top: calc(100% + 4px); background: var(--raise); border: 1px solid var(--line); border-radius: 9px; padding: 6px; display: flex; flex-direction: column; gap: 2px; min-width: 230px; z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,.4); }
+.menu-list button { border: 0; background: none; text-align: left; padding: 8px 10px; }
+.menu-list button:hover { background: var(--line); }
+.menu-list small { display: block; color: var(--muted); font-size: 12px; }
+main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+#stage { position: relative; min-width: 0; min-height: 0; }
+#plan, #view3d { width: 100%; height: 100%; display: block; touch-action: none; background: var(--bg); }
+.views { position: absolute; left: 12px; top: 12px; display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 9px; padding: 3px; gap: 2px; z-index: 5; }
+.views button { border: 0; background: none; padding: 6px 12px; border-radius: 6px; }
+.views button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+#hint { position: absolute; left: 12px; right: 12px; bottom: 10px; font-size: 13px; color: var(--fg); background: color-mix(in srgb, var(--panel) 88%, transparent); border: 1px solid var(--line); padding: 6px 10px; border-radius: 8px; pointer-events: none; width: fit-content; max-width: calc(100% - 24px); }
+#walkPad { position: absolute; right: 14px; bottom: 54px; display: grid; grid-template-columns: repeat(3, 46px); gap: 6px; z-index: 5; }
+#walkPad button { height: 46px; font-size: 18px; padding: 0; background: color-mix(in srgb, var(--panel) 85%, transparent); }
+aside { border-left: 1px solid var(--line); background: var(--panel); overflow-y: auto; padding-block: 14px; padding-inline: 16px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.step h2 { display: flex; align-items: center; gap: 8px; font: 600 12px/1 var(--display); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+.step h2 b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--raise); border: 1px solid var(--line); color: var(--fg); font-size: 11px; letter-spacing: 0; }
 .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.tools button { display: flex; align-items: center; gap: 6px; font-size: 13px; padding: 7px 8px; }
-.tools button[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--raise)); }
-.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
-.row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.field { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--muted); }
-.field input, .field select { color: var(--fg); width: 100%; box-sizing: border-box; }
-.check-line { display: flex; align-items: center; gap: 6px; font-size: 13px; }
-#checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; font-size: 13px; }
-#checks li { display: flex; gap: 8px; align-items: baseline; }
-#checks li::before { content: ""; width: 8px; height: 8px; border-radius: 2px; flex: none; transform: translateY(-1px); }
+.tool { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; padding: 8px 4px; }
+.tool svg { width: 22px; height: 22px; }
+.tool[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--raise)); }
+.sub { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
+.label { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chips button { padding: 5px 10px; font-size: 13px; }
+.chips button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper input { width: 70px; text-align: center; font-variant-numeric: tabular-nums; }
+.stepper button { width: 34px; padding: 5px 0; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 6px; }
+.swatch { display: flex; align-items: center; gap: 7px; padding: 5px 7px; font-size: 12px; text-align: left; }
+.swatch i { width: 18px; height: 18px; border-radius: 4px; flex: none; border: 1px solid rgba(0,0,0,.4); background-size: cover; }
+.swatch[aria-pressed="true"] { border-color: var(--accent); }
+.toggle { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; }
+.toggle input { width: 16px; height: 16px; accent-color: var(--accent); }
+.team-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.team { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.team .dot { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+.team[aria-pressed="true"] { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 16%, var(--raise)); }
+.count { margin-left: auto; font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+#checks { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+#checks li { display: flex; gap: 8px; align-items: center; }
+#checks li::before { content: ""; width: 9px; height: 9px; border-radius: 50%; flex: none; }
 #checks li.bad::before { background: var(--bad); }
 #checks li.warn::before { background: var(--warn); }
-#checks li.good::before { background: var(--good); }
-#view3d { width: 100%; aspect-ratio: 4 / 3; border-radius: 8px; border: 1px solid var(--line); background: #0a0d10; display: block; touch-action: none; max-width: 100%; }
-.stats { font: 12px var(--mono); color: var(--muted); font-variant-numeric: tabular-nums; }
-.actions { display: flex; flex-wrap: wrap; gap: 6px; }
-#msg { font-size: 13px; color: var(--accent); min-height: 1em; }
-#fallback { width: 100%; height: 120px; font: 11px var(--mono); background: var(--bg); color: var(--fg); border: 1px solid var(--line); border-radius: 6px; }
-.small { font-size: 12px; color: var(--muted); }
-@media (max-width: 760px) {
+#checks li.good::before, #checks li.info::before { background: var(--good); }
+#checks li span { flex: 1; }
+#checks li button { padding: 3px 9px; font-size: 12px; flex: none; }
+#play { width: 100%; padding: 12px; font-size: 15px; }
+#msg { font-size: 13px; color: var(--accent); min-height: 1em; margin: 8px 0 0; }
+.small { font-size: 12px; color: var(--muted); margin: 0; }
+.overlay { position: fixed; inset: 0; background: rgba(5,8,10,.66); display: grid; place-items: center; z-index: 50; padding: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 22px 24px; max-width: 470px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,.5); }
+.card h3 { font: 700 20px/1.2 var(--display); margin: 0 0 6px; text-wrap: balance; }
+.card ol { margin: 14px 0 18px; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.card li b { color: var(--accent); }
+.card code { font: 13px var(--mono); background: var(--bg); padding: 2px 6px; border-radius: 4px; user-select: all; }
+.card .actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.busy::after { content: ""; display: inline-block; width: 12px; height: 12px; margin-left: 8px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -2px; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .busy::after { animation: none; } }
+@media (max-width: 800px) {
   body { height: auto; }
   main { grid-template-columns: 1fr; }
-  #planWrap { height: 62vh; }
+  #stage { height: 64vh; }
   aside { border-left: 0; border-top: 1px solid var(--line); }
-  header input { width: 120px; }
+  #mapTitle { width: 130px; }
 }
 </style>
 
 <header>
   <h1>MB2 <span>Map Maker</span></h1>
-  <label for="mapTitle">Map name <input id="mapTitle" value="Twin Hangars"></label>
-  <label for="mapFile">File name <input id="mapFile" value="mb2_twinhangars" spellcheck="false"></label>
+  <label for="mapTitle">Map name <input id="mapTitle" value="Twin Hangars" maxlength="40"></label>
   <div class="grow"></div>
   <button id="undo" title="Undo (Ctrl+Z)">Undo</button>
-  <button id="newMap">New</button>
-  <button id="sample">Sample map</button>
-  <button id="saveProject">Save project</button>
-  <button id="openProject">Open project</button>
+  <button id="redo" title="Redo (Ctrl+Y)">Redo</button>
+  <div class="menu">
+    <button id="moreBtn" aria-haspopup="true" aria-expanded="false">More ▾</button>
+    <div class="menu-list" id="moreMenu" hidden>
+      <button data-act="blank">New blank map<small>Start from an empty grid</small></button>
+      <button data-act="sample">Load the example map<small>Twin Hangars, ready to play</small></button>
+      <button data-act="save">Save project file<small>Keep a copy to open later (.json)</small></button>
+      <button data-act="open">Open project file<small>Continue a saved map</small></button>
+      <button data-act="radiant">Export for Radiant<small>.map source for advanced editing</small></button>
+      <button data-act="help">How to use this<small>Show the quick guide again</small></button>
+    </div>
+  </div>
   <input id="openFile" type="file" accept=".json,application/json" hidden>
-  <button id="exportZip" class="primary">Export for Radiant</button>
 </header>
 
 <main>
-  <div id="planWrap">
+  <div id="stage">
+    <div class="views" role="group" aria-label="View">
+      <button data-view="plan" aria-pressed="true">Draw</button>
+      <button data-view="orbit" aria-pressed="false">3D</button>
+      <button data-view="walk" aria-pressed="false">Walk around</button>
+    </div>
     <canvas id="plan" aria-label="Top-down map plan"></canvas>
-    <div id="hint">Drag to paint rooms · right-drag or two fingers to pan · wheel to zoom</div>
+    <canvas id="view3d" aria-label="3D view" hidden></canvas>
+    <div id="walkPad" hidden>
+      <span></span><button data-move="f" aria-label="Walk forward">▲</button><span></span>
+      <button data-move="l" aria-label="Step left">◀</button><button data-move="b" aria-label="Walk back">▼</button><button data-move="r" aria-label="Step right">▶</button>
+    </div>
+    <div id="hint"></div>
   </div>
+
   <aside>
-    <section>
-      <h2>Tools</h2>
+    <section class="step">
+      <h2><b>1</b>Build</h2>
       <div class="tools" id="tools">
-        <button data-tool="room" aria-pressed="true"><span class="dot" style="background:var(--accent)"></span>Room</button>
-        <button data-tool="erase" aria-pressed="false"><span class="dot" style="background:var(--muted)"></span>Wall</button>
-        <button data-tool="select" aria-pressed="false"><span class="dot" style="background:var(--fg)"></span>Move</button>
-        <button data-tool="imperial" aria-pressed="false"><span class="dot" style="background:var(--imp)"></span>Imperial</button>
-        <button data-tool="rebel" aria-pressed="false"><span class="dot" style="background:var(--reb)"></span>Rebel</button>
-        <button data-tool="ffa" aria-pressed="false"><span class="dot" style="background:var(--ffa)"></span>FFA</button>
-        <button data-tool="light" aria-pressed="false"><span class="dot" style="background:var(--lamp)"></span>Light</button>
-        <button data-tool="pick" aria-pressed="false"><span class="dot" style="background:var(--warn)"></span>Copy</button>
+        <button class="tool" data-tool="room" aria-pressed="true" title="Floor (1)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" fill-opacity=".25"/></svg>Floor</button>
+        <button class="tool" data-tool="erase" aria-pressed="false" title="Wall (2)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v6M15 9v6M9 15v6"/></svg>Wall</button>
+        <button class="tool" data-tool="raise" aria-pressed="false" title="Raise floor (3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 19V5M6 11l6-6 6 6"/></svg>Raise</button>
+        <button class="tool" data-tool="lower" aria-pressed="false" title="Lower floor (4)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M6 13l6 6 6-6"/></svg>Lower</button>
+        <button class="tool" data-tool="pick" aria-pressed="false" title="Copy a room's settings (5)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 4l6 6-9 9H5v-6z"/></svg>Copy</button>
+        <button class="tool" data-tool="select" aria-pressed="false" title="Move markers (6)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3"/></svg>Move</button>
+      </div>
+      <div class="sub" id="roomSettings">
+        <div>
+          <div class="label">Look</div>
+          <div class="swatches" id="looks"></div>
+        </div>
+        <div>
+          <div class="label">Floor height</div>
+          <div class="stepper"><button id="floorDown" aria-label="Lower floor">−</button><input id="floorH" type="number" step="16" value="0" aria-label="Floor height in game units"><button id="floorUp" aria-label="Raise floor">+</button><span class="small">units</span></div>
+        </div>
+        <div>
+          <div class="label">Ceiling</div>
+          <div class="chips" id="ceilChips">
+            <button data-ceil="192">Low</button><button data-ceil="320" aria-pressed="true">Normal</button><button data-ceil="512">Tall</button><button data-ceil="768">Huge</button>
+          </div>
+        </div>
+        <label class="toggle" for="sky"><input id="sky" type="checkbox"> Open sky (outdoors)</label>
       </div>
     </section>
 
-    <section>
-      <h2>Room brush</h2>
-      <div class="row">
-        <label class="field" for="floorH">Floor height<input id="floorH" type="number" step="16" value="0"></label>
-        <label class="field" for="ceilH">Ceiling height<input id="ceilH" type="number" step="16" value="256"></label>
+    <section class="step">
+      <h2><b>2</b>Teams</h2>
+      <div class="team-row">
+        <button class="team" data-tool="rebel" aria-pressed="false"><span class="dot" style="background:var(--reb)"></span>Rebels<span class="count" id="nReb">0</span></button>
+        <button class="team" data-tool="imperial" aria-pressed="false"><span class="dot" style="background:var(--imp)"></span>Imperials<span class="count" id="nImp">0</span></button>
+        <button class="team" data-tool="light" aria-pressed="false"><span class="dot" style="background:var(--lamp)"></span>Light<span class="count" id="nLight">0</span></button>
+        <button class="team" id="autoSpawns"><span class="dot" style="background:var(--accent)"></span>Place for me</button>
       </div>
-      <div class="row" style="margin-top:8px">
-        <label class="field" for="theme">Look<select id="theme"></select></label>
-        <label class="check-line" for="sky" style="align-self:end;padding-bottom:6px"><input id="sky" type="checkbox"> Open sky</label>
-      </div>
-      <p class="small" style="margin:8px 0 0">Units are game units: a player is about 64 tall, so keep ceilings at 128 or more.</p>
+      <p class="small" style="margin-top:8px">Click the map to drop a start point. Lights are added automatically too.</p>
     </section>
 
-    <section id="entPanel" hidden>
-      <h2>Selected</h2>
-      <div class="row">
-        <label class="field" for="entAngle">Facing (degrees)<input id="entAngle" type="number" step="45"></label>
-        <label class="field" for="entLight">Brightness<input id="entLight" type="number" step="50"></label>
-      </div>
-      <div class="actions" style="margin-top:8px"><button id="entDelete">Delete</button></div>
-    </section>
-
-    <section>
-      <h2>3D preview</h2>
-      <canvas id="view3d" aria-label="3D preview"></canvas>
-      <p class="stats" id="stats"></p>
-    </section>
-
-    <section>
-      <h2>Ready to play?</h2>
+    <section class="step">
+      <h2><b>3</b>Check</h2>
       <ul id="checks"></ul>
     </section>
 
-    <section>
-      <h2>Export</h2>
-      <div class="actions">
-        <label class="check-line" for="autoLights"><input id="autoLights" type="checkbox" checked> Add lights automatically</label>
-        <label class="check-line" for="ctfSpawns"><input id="ctfSpawns" type="checkbox" checked> Add CTF backup spawns</label>
-      </div>
-      <div class="actions" style="margin-top:8px">
-        <button id="copyMap">Copy .map text</button>
-        <button id="resetTex">Textures…</button>
-      </div>
+    <section class="step">
+      <h2><b>4</b>Play</h2>
+      <button id="play" class="primary">Download playable map</button>
       <p id="msg" role="status"></p>
-      <textarea id="fallback" hidden readonly aria-label=".map text"></textarea>
-      <div id="texPanel" hidden>
-        <p class="small">Texture names used on export. Change any that show as missing in Radiant.</p>
-        <div id="texFields" style="display:flex;flex-direction:column;gap:6px"></div>
-      </div>
+      <p class="small" id="stats"></p>
     </section>
   </aside>
 </main>
 
+<div class="overlay" id="guide" hidden>
+  <div class="card" role="dialog" aria-labelledby="guideTitle">
+    <h3 id="guideTitle">Make a Movie Battles 2 map in three steps</h3>
+    <p class="small">An example map is already loaded so you can try everything right away.</p>
+    <ol>
+      <li><b>Build:</b> pick <b>Floor</b> and drag on the grid to make rooms. Pick a look, a ceiling height, or open sky first. <b>Wall</b> removes floor.</li>
+      <li><b>Teams:</b> click <b>Rebels</b> or <b>Imperials</b>, then click the map to place where each team starts. Or press <b>Place for me</b>.</li>
+      <li><b>Play:</b> press <b>Download playable map</b>. Use <b>Walk around</b> any time to explore it first.</li>
+    </ol>
+    <div class="actions"><button id="guideBlank">Start blank</button><button id="guideOk" class="primary">Got it</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="install" hidden>
+  <div class="card" role="dialog" aria-labelledby="installTitle">
+    <h3 id="installTitle">Your map is ready</h3>
+    <ol>
+      <li>Open the downloaded <code id="zipName">map.zip</code>.</li>
+      <li>Drag <code id="pk3Name">map.pk3</code> into your <b>GameData › MBII</b> folder. On Steam that is <code>Steam\steamapps\common\Jedi Academy\GameData\MBII</code>.</li>
+      <li>Start Movie Battles II, open the console with <b>~</b> and type <code id="mapCmd">/map mb2_map</code>. Or host a game and pick it from the map list.</li>
+    </ol>
+    <div class="actions"><button id="installOk" class="primary">Done</button></div>
+  </div>
+</div>
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="mapgen.js"></script>
+<script src="bsp.js"></script>
+<script src="textures.js"></script>
 <script>
 (function () {
 'use strict';
-var G = window.MapGen;
+var G = window.MapGen, B = window.MapBSP, T = window.MapTextures;
 var $ = function (id) { return document.getElementById(id); };
-var KEY = 'mb2mapmaker.project.v1';
+var KEY = 'mb2mapmaker.project.v1', GUIDE_KEY = 'mb2mapmaker.guide.v2';
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } }
 
-// ---------- state ----------
-var state, history = [];
-function blank(w, h) {
-  return { name: 'mb2_newmap', title: 'New Map', cell: 64, w: w || 40, h: h || 28, cells: new Array((w || 40) * (h || 28)).fill(null), ents: [],
-    themes: JSON.parse(JSON.stringify(G.THEMES)), sky: G.SKY };
-}
-function sample() {
-  var s = blank(40, 28); s.name = 'mb2_twinhangars'; s.title = 'Twin Hangars';
-  function room(x, y, w, h, f, c, t, sky) { for (var j = y; j < y + h; j++) for (var i = x; i < x + w; i++) s.cells[j * s.w + i] = { f: f, c: c, t: t, sky: !!sky }; }
-  room(2, 8, 9, 12, 0, 320, 'imperial');          // Imperial hangar
-  room(29, 8, 9, 12, 0, 320, 'rebel');            // Rebel hangar
-  room(11, 12, 4, 4, 0, 192, 'imperial');         // west corridor
-  room(25, 12, 4, 4, 0, 192, 'rebel');            // east corridor
-  room(15, 6, 10, 16, 0, 512, 'desert', true);    // open courtyard
-  room(18, 11, 4, 6, 48, 512, 'desert', true);    // raised platform
-  room(17, 2, 6, 4, 32, 224, 'imperial');         // north balcony
-  room(19, 22, 2, 3, 0, 192, 'rebel');            // south tunnel
-  room(16, 25, 8, 2, 0, 192, 'rebel');
-  [[4, 10], [4, 13], [4, 16], [7, 11], [7, 15]].forEach(function (p) { s.ents.push({ type: 'imperial', x: p[0] + .5, y: p[1] + .5, angle: 0 }); });
-  [[35, 10], [35, 13], [35, 16], [32, 11], [32, 15]].forEach(function (p) { s.ents.push({ type: 'rebel', x: p[0] + .5, y: p[1] + .5, angle: 180 }); });
-  s.ents.push({ type: 'ffa', x: 20, y: 14, angle: 90 });
-  return s;
-}
+// ---------- state + history ----------
+var state, past = [], future = [];
 function load() {
-  try { var raw = localStorage.getItem(KEY); if (raw) { var s = JSON.parse(raw); if (s && s.cells) return s; } } catch (e) {}
-  return sample();
+  try { var s = JSON.parse(store(KEY)); if (s && s.cells && s.w) return s; } catch (e) {}
+  return G.sampleMap();
 }
 var saveTimer;
-function persist() {
-  clearTimeout(saveTimer);
-  saveTimer = setTimeout(function () { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }, 300);
-}
-function snapshot() { history.push(JSON.stringify(state)); if (history.length > 80) history.shift(); }
-function changed() { persist(); drawPlan(); refreshChecks(); schedule3d(); }
+function persist() { clearTimeout(saveTimer); saveTimer = setTimeout(function () { store(KEY, JSON.stringify(state)); }, 300); }
+function snapshot() { past.push(JSON.stringify(state)); if (past.length > 100) past.shift(); future = []; syncHistory(); }
+function syncHistory() { $('undo').disabled = !past.length; $('redo').disabled = !future.length; }
+function undo() { if (!past.length) return; future.push(JSON.stringify(state)); state = JSON.parse(past.pop()); afterLoad(); }
+function redo() { if (!future.length) return; past.push(JSON.stringify(state)); state = JSON.parse(future.pop()); afterLoad(); }
+function afterLoad() { selected = -1; $('mapTitle').value = state.title; syncHistory(); changed(); }
+function replaceState(s, note) { snapshot(); state = s; afterLoad(); fit(); if (note) say(note); }
+function changed() { persist(); drawPlan(); refreshChecks(); if (view !== 'plan') schedule3d(); }
+$('undo').addEventListener('click', undo);
+$('redo').addEventListener('click', redo);
 
 // ---------- tools ----------
 var tool = 'room', selected = -1;
-$('tools').addEventListener('click', function (e) {
-  var b = e.target.closest('button'); if (!b) return;
-  tool = b.dataset.tool;
-  Array.prototype.forEach.call($('tools').children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-  $('hint').textContent = {
-    room: 'Drag to paint rooms with the brush settings', erase: 'Drag to turn floor back into solid wall',
-    select: 'Drag a marker to move it · Delete key removes it', pick: 'Click a room to copy its heights and look',
-    imperial: 'Click to place an Imperial spawn', rebel: 'Click to place a Rebel spawn', ffa: 'Click to place a free-for-all spawn', light: 'Click to place a light'
-  }[tool] + ' · right-drag to pan · wheel to zoom';
+var HINTS = {
+  room: 'Drag on the grid to paint floor with the settings on the right.',
+  erase: 'Drag to turn floor back into solid wall.',
+  raise: 'Drag over floor to raise it by 16 units. Great for steps and platforms.',
+  lower: 'Drag over floor to lower it by 16 units.',
+  pick: 'Click a room to copy its look and heights.',
+  select: 'Drag a marker to move it. Press R to turn it, Delete to remove it.',
+  rebel: 'Click the map where Rebels should start. The arrow shows which way they face.',
+  imperial: 'Click the map where Imperials should start.',
+  light: 'Click to add a light. Rooms already get lights automatically.'
+};
+function setTool(t) {
+  tool = t;
+  document.querySelectorAll('[data-tool]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.tool === t ? 'true' : 'false'); });
+  hint();
+}
+function hint() {
+  $('hint').textContent = view === 'walk' ? 'Drag to look around. Walk with W A S D, the arrow keys, or the buttons.'
+    : view === 'orbit' ? 'Drag to turn the map, scroll to zoom. Switch to Draw to keep building.'
+    : HINTS[tool] + ' Right-drag or two fingers to pan, scroll to zoom.';
+}
+document.querySelectorAll('[data-tool]').forEach(function (b) { b.addEventListener('click', function () { setTool(b.dataset.tool); if (view !== 'plan') setView('plan'); }); });
+
+// room settings
+var brushLook = 'imperial', brushCeil = 320;
+G.THEMES.forEach(function (t) {
+  var b = document.createElement('button'); b.className = 'swatch'; b.dataset.look = t.id;
+  b.innerHTML = '<i></i>' + t.name;
+  b.querySelector('i').style.background = t.color;
+  b.addEventListener('click', function () { brushLook = t.id; syncBrush(); if (tool !== 'room') setTool('room'); });
+  $('looks').appendChild(b);
 });
-function brush() { return { f: +$('floorH').value || 0, c: +$('ceilH').value || 256, t: $('theme').value, sky: $('sky').checked }; }
+function syncBrush() {
+  document.querySelectorAll('.swatch').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.look === brushLook ? 'true' : 'false'); });
+  document.querySelectorAll('[data-ceil]').forEach(function (b) { b.setAttribute('aria-pressed', +b.dataset.ceil === brushCeil ? 'true' : 'false'); });
+}
+$('ceilChips').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { brushCeil = +b.dataset.ceil; syncBrush(); } });
+$('floorUp').addEventListener('click', function () { $('floorH').value = (+$('floorH').value || 0) + 16; });
+$('floorDown').addEventListener('click', function () { $('floorH').value = (+$('floorH').value || 0) - 16; });
+function brush() { var f = Math.round((+$('floorH').value || 0) / 8) * 8; return { f: f, c: f + brushCeil, t: brushLook, sky: $('sky').checked }; }
+function paintSwatches() {
+  // use the real textures on the look buttons once they are drawn
+  document.querySelectorAll('.swatch').forEach(function (b) { try { b.querySelector('i').style.backgroundImage = 'url(' + T.get(b.dataset.look + '_wall').toDataURL('image/jpeg', .7) + ')'; } catch (e) {} });
+}
 
 // ---------- 2D plan ----------
-var cv = $('plan'), ctx = cv.getContext('2d');
-var view = { z: 20, ox: 20, oy: 20 };
-var css = getComputedStyle(document.documentElement);
-var col = function (n) { return css.getPropertyValue(n).trim(); };
+var cv = $('plan'), ctx = cv.getContext('2d'), pv = { z: 20, ox: 20, oy: 60 };
+var css = getComputedStyle(document.documentElement), col = function (n) { return css.getPropertyValue(n).trim(); };
 var ENT_COLOR = { imperial: col('--imp'), rebel: col('--reb'), ffa: col('--ffa'), light: col('--lamp') };
-var ENT_LETTER = { imperial: 'I', rebel: 'R', ffa: 'F', light: 'L' };
-
+var ENT_LETTER = { imperial: 'I', rebel: 'R', ffa: 'F', light: '' };
 function fit() {
-  var r = cv.getBoundingClientRect();
-  view.z = Math.max(8, Math.floor(Math.min((r.width - 40) / state.w, (r.height - 40) / state.h)));
-  view.ox = (r.width - view.z * state.w) / 2; view.oy = (r.height - view.z * state.h) / 2;
+  var r = cv.getBoundingClientRect(); if (!r.width) return;
+  pv.z = Math.max(8, Math.floor(Math.min((r.width - 30) / state.w, (r.height - 110) / state.h)));
+  pv.ox = (r.width - pv.z * state.w) / 2; pv.oy = Math.max(56, (r.height - pv.z * state.h) / 2);
 }
 function resize() {
-  var r = cv.getBoundingClientRect(), d = window.devicePixelRatio || 1;
-  cv.width = Math.round(r.width * d); cv.height = Math.round(r.height * d);
-  ctx.setTransform(d, 0, 0, d, 0, 0); drawPlan();
+  [cv, $('view3d')].forEach(function (c) { var r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1; if (r.width) { c.width = Math.round(r.width * d); c.height = Math.round(r.height * d); } });
+  ctx.setTransform(window.devicePixelRatio || 1, 0, 0, window.devicePixelRatio || 1, 0, 0);
+  drawPlan(); render3d();
 }
 function shade(hex, f) {
-  var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255;
-  var k = Math.max(-0.55, Math.min(0.35, f / 400));
+  var n = parseInt(hex.slice(1), 16), r = n >> 16, g = (n >> 8) & 255, b = n & 255, k = Math.max(-0.55, Math.min(0.4, f / 300));
   var m = function (x) { return Math.round(k < 0 ? x * (1 + k) : x + (255 - x) * k); };
   return 'rgb(' + m(r) + ',' + m(g) + ',' + m(b) + ')';
 }
 var drag = null;
-function drawPlan() {
-  var r = cv.getBoundingClientRect(), z = view.z;
-  ctx.clearRect(0, 0, r.width, r.height);
-  ctx.fillStyle = '#161b21'; ctx.fillRect(view.ox, view.oy, state.w * z, state.h * z);
-  for (var j = 0; j < state.h; j++) for (var i = 0; i < state.w; i++) {
-    var c = state.cells[j * state.w + i]; if (!c) continue;
-    var th = G.themeById(state, c.t);
-    ctx.fillStyle = shade(th.color, c.f - 40);
-    ctx.fillRect(view.ox + i * z, view.oy + j * z, z, z);
-    if (c.sky) { ctx.fillStyle = 'rgba(140,200,255,.55)'; ctx.fillRect(view.ox + i * z + z / 2 - 1, view.oy + j * z + z / 2 - 1, 2, 2); }
+function drawPlan(target, scale) {
+  var c2 = target || ctx, r = target ? { width: target.canvas.width, height: target.canvas.height } : cv.getBoundingClientRect();
+  var z = scale ? scale.z : pv.z, ox = scale ? scale.ox : pv.ox, oy = scale ? scale.oy : pv.oy;
+  c2.clearRect(0, 0, r.width, r.height);
+  c2.fillStyle = '#12171c'; c2.fillRect(0, 0, r.width, r.height);
+  c2.fillStyle = '#1a2026'; c2.fillRect(ox, oy, state.w * z, state.h * z);
+  var i, j, c;
+  for (j = 0; j < state.h; j++) for (i = 0; i < state.w; i++) {
+    c = state.cells[j * state.w + i]; if (!c) continue;
+    c2.fillStyle = shade(G.themeById(c.t).color, c.f - 40);
+    c2.fillRect(ox + i * z, oy + j * z, z, z);
+    if (c.sky) { c2.fillStyle = 'rgba(150,205,255,.6)'; c2.fillRect(ox + i * z + z / 2 - 1.5, oy + j * z + z / 2 - 1.5, 3, 3); }
   }
-  // room edges: draw a strong line where floor height changes or a wall begins
-  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2; ctx.beginPath();
+  c2.strokeStyle = 'rgba(0,0,0,.6)'; c2.lineWidth = 2; c2.beginPath();
   for (j = 0; j < state.h; j++) for (i = 0; i < state.w; i++) {
     c = state.cells[j * state.w + i];
     var rt = i + 1 < state.w ? state.cells[j * state.w + i + 1] : null, dn = j + 1 < state.h ? state.cells[(j + 1) * state.w + i] : null;
-    if (!!c !== !!rt || (c && rt && c.f !== rt.f)) { ctx.moveTo(view.ox + (i + 1) * z, view.oy + j * z); ctx.lineTo(view.ox + (i + 1) * z, view.oy + (j + 1) * z); }
-    if (!!c !== !!dn || (c && dn && c.f !== dn.f)) { ctx.moveTo(view.ox + i * z, view.oy + (j + 1) * z); ctx.lineTo(view.ox + (i + 1) * z, view.oy + (j + 1) * z); }
+    if (!!c !== !!rt || (c && rt && c.f !== rt.f)) { c2.moveTo(ox + (i + 1) * z, oy + j * z); c2.lineTo(ox + (i + 1) * z, oy + (j + 1) * z); }
+    if (!!c !== !!dn || (c && dn && c.f !== dn.f)) { c2.moveTo(ox + i * z, oy + (j + 1) * z); c2.lineTo(ox + (i + 1) * z, oy + (j + 1) * z); }
   }
-  ctx.stroke();
+  c2.stroke();
+  if (target) return;
   if (z >= 10) {
-    ctx.strokeStyle = 'rgba(255,255,255,.06)'; ctx.lineWidth = 1; ctx.beginPath();
-    for (i = 0; i <= state.w; i++) { ctx.moveTo(view.ox + i * z + .5, view.oy); ctx.lineTo(view.ox + i * z + .5, view.oy + state.h * z); }
-    for (j = 0; j <= state.h; j++) { ctx.moveTo(view.ox, view.oy + j * z + .5); ctx.lineTo(view.ox + state.w * z, view.oy + j * z + .5); }
-    ctx.stroke();
+    c2.strokeStyle = 'rgba(255,255,255,.06)'; c2.lineWidth = 1; c2.beginPath();
+    for (i = 0; i <= state.w; i++) { c2.moveTo(ox + i * z + .5, oy); c2.lineTo(ox + i * z + .5, oy + state.h * z); }
+    for (j = 0; j <= state.h; j++) { c2.moveTo(ox, oy + j * z + .5); c2.lineTo(ox + state.w * z, oy + j * z + .5); }
+    c2.stroke();
   }
-  // height labels on big zoom
   if (z >= 26) {
-    ctx.font = '10px "IBM Plex Mono", monospace'; ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    for (j = 0; j < state.h; j++) for (i = 0; i < state.w; i++) { c = state.cells[j * state.w + i]; if (c && c.f) ctx.fillText(c.f, view.ox + i * z + 3, view.oy + j * z + 2); }
+    c2.font = '10px "IBM Plex Mono", monospace'; c2.fillStyle = 'rgba(0,0,0,.65)'; c2.textAlign = 'left'; c2.textBaseline = 'top';
+    for (j = 0; j < state.h; j++) for (i = 0; i < state.w; i++) { c = state.cells[j * state.w + i]; if (c && c.f) c2.fillText((c.f > 0 ? '+' : '') + c.f, ox + i * z + 3, oy + j * z + 2); }
   }
   if (drag && drag.rect) {
     var a = drag.rect;
-    ctx.fillStyle = tool === 'erase' ? 'rgba(0,0,0,.45)' : 'rgba(95,211,182,.25)';
-    ctx.strokeStyle = col('--accent'); ctx.lineWidth = 2;
-    ctx.fillRect(view.ox + a.x0 * z, view.oy + a.y0 * z, (a.x1 - a.x0 + 1) * z, (a.y1 - a.y0 + 1) * z);
-    ctx.strokeRect(view.ox + a.x0 * z, view.oy + a.y0 * z, (a.x1 - a.x0 + 1) * z, (a.y1 - a.y0 + 1) * z);
+    c2.fillStyle = tool === 'erase' ? 'rgba(0,0,0,.45)' : 'rgba(95,211,182,.25)';
+    c2.strokeStyle = col('--accent'); c2.lineWidth = 2;
+    c2.fillRect(ox + a.x0 * z, oy + a.y0 * z, (a.x1 - a.x0 + 1) * z, (a.y1 - a.y0 + 1) * z);
+    c2.strokeRect(ox + a.x0 * z, oy + a.y0 * z, (a.x1 - a.x0 + 1) * z, (a.y1 - a.y0 + 1) * z);
+    c2.fillStyle = '#fff'; c2.font = '600 12px "IBM Plex Sans", sans-serif'; c2.textAlign = 'left'; c2.textBaseline = 'bottom';
+    c2.fillText((a.x1 - a.x0 + 1) + ' × ' + (a.y1 - a.y0 + 1), ox + a.x0 * z + 2, oy + a.y0 * z - 3);
   }
   state.ents.forEach(function (e, k) {
-    var x = view.ox + e.x * z, y = view.oy + e.y * z, rad = Math.max(6, z * .38);
-    ctx.fillStyle = ENT_COLOR[e.type]; ctx.beginPath(); ctx.arc(x, y, rad, 0, Math.PI * 2); ctx.fill();
-    if (k === selected) { ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke(); }
+    var x = ox + e.x * z, y = oy + e.y * z, rad = Math.max(6, z * .36);
+    c2.fillStyle = ENT_COLOR[e.type]; c2.beginPath(); c2.arc(x, y, rad, 0, Math.PI * 2); c2.fill();
+    if (k === selected) { c2.strokeStyle = '#fff'; c2.lineWidth = 2; c2.stroke(); }
     if (e.type !== 'light') {
       var an = -(e.angle || 0) * Math.PI / 180;
-      ctx.strokeStyle = ENT_COLOR[e.type]; ctx.lineWidth = 2; ctx.beginPath();
-      ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(an) * rad * 1.8, y + Math.sin(an) * rad * 1.8); ctx.stroke();
+      c2.strokeStyle = ENT_COLOR[e.type]; c2.lineWidth = 2.5; c2.beginPath();
+      c2.moveTo(x, y); c2.lineTo(x + Math.cos(an) * rad * 1.9, y + Math.sin(an) * rad * 1.9); c2.stroke();
+      c2.fillStyle = '#0b0e11'; c2.font = '700 ' + Math.round(rad * 1.1) + 'px "IBM Plex Sans", sans-serif';
+      c2.textAlign = 'center'; c2.textBaseline = 'middle'; c2.fillText(ENT_LETTER[e.type], x, y + 1);
     }
-    ctx.fillStyle = '#0b0e11'; ctx.font = '600 ' + Math.round(rad * 1.1) + 'px "IBM Plex Sans", sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(ENT_LETTER[e.type], x, y + 1);
   });
 }
-function toCell(ev) {
-  var r = cv.getBoundingClientRect();
-  return { x: (ev.clientX - r.left - view.ox) / view.z, y: (ev.clientY - r.top - view.oy) / view.z };
-}
+function toCell(ev) { var r = cv.getBoundingClientRect(); return { x: (ev.clientX - r.left - pv.ox) / pv.z, y: (ev.clientY - r.top - pv.oy) / pv.z }; }
 function inGrid(p) { return p.x >= 0 && p.y >= 0 && p.x < state.w && p.y < state.h; }
-function hitEnt(p) {
-  for (var k = state.ents.length - 1; k >= 0; k--) { var e = state.ents[k]; if (Math.hypot(e.x - p.x, e.y - p.y) < .6) return k; }
-  return -1;
-}
+function hitEnt(p) { for (var k = state.ents.length - 1; k >= 0; k--) { var e = state.ents[k]; if (Math.hypot(e.x - p.x, e.y - p.y) < .6) return k; } return -1; }
 var pointers = new Map();
 cv.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 cv.addEventListener('pointerdown', function (ev) {
   cv.setPointerCapture(ev.pointerId); pointers.set(ev.pointerId, ev);
   var p = toCell(ev);
-  if (ev.button === 2 || ev.button === 1 || pointers.size > 1) { drag = { pan: true, sx: ev.clientX, sy: ev.clientY, ox: view.ox, oy: view.oy }; drawPlan(); return; }
-  if (tool === 'room' || tool === 'erase') {
+  if (ev.button === 2 || ev.button === 1 || pointers.size > 1) { drag = { pan: true, sx: ev.clientX, sy: ev.clientY, ox: pv.ox, oy: pv.oy }; drawPlan(); return; }
+  if (/room|erase|raise|lower/.test(tool)) {
     if (!inGrid(p)) return;
     var cx = Math.floor(p.x), cy = Math.floor(p.y);
     drag = { paint: true, ax: cx, ay: cy, rect: { x0: cx, y0: cy, x1: cx, y1: cy } }; drawPlan();
   } else if (tool === 'select') {
-    selected = hitEnt(p); showEnt();
+    selected = hitEnt(p);
     if (selected >= 0) { snapshot(); drag = { move: selected }; }
     drawPlan();
   } else if (tool === 'pick') {
     var c = inGrid(p) && state.cells[Math.floor(p.y) * state.w + Math.floor(p.x)];
-    if (c) { $('floorH').value = c.f; $('ceilH').value = c.c; $('theme').value = c.t; $('sky').checked = !!c.sky; say('Copied that room into the brush.'); }
+    if (c) {
+      $('floorH').value = c.f; brushLook = c.t; $('sky').checked = !!c.sky;
+      brushCeil = c.c - c.f; syncBrush(); setTool('room'); say('Copied that room. Drag to paint more of it.');
+    }
   } else if (inGrid(p)) {
+    var hit = hitEnt(p);
+    if (hit >= 0) { selected = hit; snapshot(); drag = { move: hit }; drawPlan(); return; }
+    if (!state.cells[Math.floor(p.y) * state.w + Math.floor(p.x)]) { say('Place markers on floor, not inside walls.'); return; }
     snapshot();
-    var e = { type: tool, x: Math.round(p.x * 2) / 2, y: Math.round(p.y * 2) / 2, angle: tool === 'rebel' ? 180 : 0 };
+    var e = { type: tool, x: Math.floor(p.x) + .5, y: Math.floor(p.y) + .5, angle: tool === 'rebel' ? 180 : 0 };
     if (tool === 'light') e.light = 300;
-    state.ents.push(e); selected = state.ents.length - 1; showEnt(); changed();
+    state.ents.push(e); selected = state.ents.length - 1; changed();
   }
 });
 cv.addEventListener('pointermove', function (ev) {
   if (pointers.has(ev.pointerId)) pointers.set(ev.pointerId, ev);
   if (!drag) return;
-  if (drag.pan) { view.ox = drag.ox + ev.clientX - drag.sx; view.oy = drag.oy + ev.clientY - drag.sy; drawPlan(); return; }
+  if (drag.pan) { pv.ox = drag.ox + ev.clientX - drag.sx; pv.oy = drag.oy + ev.clientY - drag.sy; drawPlan(); return; }
   var p = toCell(ev);
   if (drag.paint) {
     var cx = Math.max(0, Math.min(state.w - 1, Math.floor(p.x))), cy = Math.max(0, Math.min(state.h - 1, Math.floor(p.y)));
     drag.rect = { x0: Math.min(drag.ax, cx), y0: Math.min(drag.ay, cy), x1: Math.max(drag.ax, cx), y1: Math.max(drag.ay, cy) }; drawPlan();
   } else if (drag.move !== undefined) {
     var e = state.ents[drag.move];
-    e.x = Math.max(0, Math.min(state.w, Math.round(p.x * 2) / 2)); e.y = Math.max(0, Math.min(state.h, Math.round(p.y * 2) / 2)); drawPlan();
+    e.x = Math.max(0.5, Math.min(state.w - .5, Math.floor(p.x) + .5)); e.y = Math.max(0.5, Math.min(state.h - .5, Math.floor(p.y) + .5)); drawPlan();
   }
 });
 function endPointer(ev) {
@@ -336,8 +420,13 @@ function endPointer(ev) {
   if (!drag) return;
   if (drag.paint) {
     snapshot();
-    var a = drag.rect, b = tool === 'erase' ? null : brush();
-    for (var j = a.y0; j <= a.y1; j++) for (var i = a.x0; i <= a.x1; i++) state.cells[j * state.w + i] = b ? { f: b.f, c: b.c, t: b.t, sky: b.sky } : null;
+    var a = drag.rect, b = brush(), d = tool === 'raise' ? 16 : -16;
+    for (var j = a.y0; j <= a.y1; j++) for (var i = a.x0; i <= a.x1; i++) {
+      var k = j * state.w + i, c = state.cells[k];
+      if (tool === 'room') state.cells[k] = { f: b.f, c: b.c, t: b.t, sky: b.sky };
+      else if (tool === 'erase') state.cells[k] = null;
+      else if (c) { c.f += d; if (c.c - c.f < 128) c.c = c.f + 128; }
+    }
   }
   var was = drag; drag = null;
   if (!was.pan) changed(); else drawPlan();
@@ -347,193 +436,294 @@ cv.addEventListener('pointercancel', endPointer);
 cv.addEventListener('wheel', function (ev) {
   ev.preventDefault();
   var r = cv.getBoundingClientRect(), mx = ev.clientX - r.left, my = ev.clientY - r.top;
-  var nz = Math.max(6, Math.min(80, view.z * (ev.deltaY < 0 ? 1.15 : 1 / 1.15)));
-  view.ox = mx - (mx - view.ox) * nz / view.z; view.oy = my - (my - view.oy) * nz / view.z; view.z = nz; drawPlan();
+  var nz = Math.max(6, Math.min(80, pv.z * (ev.deltaY < 0 ? 1.15 : 1 / 1.15)));
+  pv.ox = mx - (mx - pv.ox) * nz / pv.z; pv.oy = my - (my - pv.oy) * nz / pv.z; pv.z = nz; drawPlan();
 }, { passive: false });
 
-// ---------- selected entity ----------
-function showEnt() {
-  var e = state.ents[selected];
-  $('entPanel').hidden = !e;
-  if (!e) return;
-  $('entAngle').value = e.angle || 0; $('entAngle').disabled = e.type === 'light';
-  $('entLight').value = e.light || 300; $('entLight').disabled = e.type !== 'light';
-}
-$('entAngle').addEventListener('change', function () { var e = state.ents[selected]; if (e) { snapshot(); e.angle = +this.value || 0; changed(); } });
-$('entLight').addEventListener('change', function () { var e = state.ents[selected]; if (e) { snapshot(); e.light = +this.value || 300; changed(); } });
-function deleteSelected() { if (selected < 0) return; snapshot(); state.ents.splice(selected, 1); selected = -1; showEnt(); changed(); }
-$('entDelete').addEventListener('click', deleteSelected);
+// keyboard
+var keys = {};
 document.addEventListener('keydown', function (ev) {
-  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
-  if ((ev.key === 'Delete' || ev.key === 'Backspace') && selected >= 0) { ev.preventDefault(); deleteSelected(); }
-  if ((ev.ctrlKey || ev.metaKey) && ev.key.toLowerCase() === 'z') { ev.preventDefault(); undo(); }
-  if (ev.key.toLowerCase() === 'r' && selected >= 0 && state.ents[selected].type !== 'light') { snapshot(); state.ents[selected].angle = ((state.ents[selected].angle || 0) + 45) % 360; showEnt(); changed(); }
+  if (/INPUT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  keys[ev.key.toLowerCase()] = true;
+  var k = ev.key.toLowerCase();
+  if ((ev.ctrlKey || ev.metaKey) && k === 'z') { ev.preventDefault(); ev.shiftKey ? redo() : undo(); return; }
+  if ((ev.ctrlKey || ev.metaKey) && k === 'y') { ev.preventDefault(); redo(); return; }
+  if (view === 'walk') return;
+  if ((k === 'delete' || k === 'backspace') && selected >= 0) { ev.preventDefault(); snapshot(); state.ents.splice(selected, 1); selected = -1; changed(); }
+  if (k === 'r' && selected >= 0 && state.ents[selected].type !== 'light') { snapshot(); state.ents[selected].angle = ((state.ents[selected].angle || 0) + 45) % 360; changed(); }
+  var t = ['room', 'erase', 'raise', 'lower', 'pick', 'select'][+k - 1];
+  if (t) setTool(t);
 });
-function undo() { var s = history.pop(); if (!s) return say('Nothing to undo.'); state = JSON.parse(s); selected = -1; showEnt(); syncHeader(); changed(); }
-$('undo').addEventListener('click', undo);
+document.addEventListener('keyup', function (ev) { keys[ev.key.toLowerCase()] = false; });
 
-// ---------- header + settings ----------
-function syncHeader() { $('mapTitle').value = state.title; $('mapFile').value = state.name; fillThemes(); }
-$('mapTitle').addEventListener('input', function () { state.title = this.value; changed(); });
-$('mapFile').addEventListener('input', function () { state.name = this.value.trim(); changed(); });
-function fillThemes() {
-  var sel = $('theme'), keep = sel.value;
-  sel.innerHTML = '';
-  state.themes.forEach(function (t) { var o = document.createElement('option'); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
-  if (keep && state.themes.some(function (t) { return t.id === keep; })) sel.value = keep;
-  var box = $('texFields'); box.innerHTML = '';
-  function field(label, obj, key, id) {
-    var l = document.createElement('label'); l.className = 'field'; l.htmlFor = id; l.textContent = label;
-    var i = document.createElement('input'); i.id = id; i.value = obj[key]; i.spellcheck = false;
-    i.addEventListener('change', function () { snapshot(); obj[key] = i.value.trim(); changed(); });
-    l.appendChild(i); box.appendChild(l);
-  }
-  state.themes.forEach(function (t) {
-    ['floor', 'wall', 'ceil'].forEach(function (k) { field(t.name + ' · ' + k, t, k, 'tex-' + t.id + '-' + k); });
-  });
-  field('Sky', state, 'sky', 'tex-sky');
-}
-$('resetTex').addEventListener('click', function () { $('texPanel').hidden = !$('texPanel').hidden; });
-$('newMap').addEventListener('click', function () { snapshot(); state = blank(); selected = -1; showEnt(); syncHeader(); fit(); changed(); say('Started a blank map. Undo brings the old one back.'); });
-$('sample').addEventListener('click', function () { snapshot(); state = sample(); selected = -1; showEnt(); syncHeader(); fit(); changed(); });
+// ---------- header + menus ----------
+$('mapTitle').addEventListener('input', function () { state.title = this.value; state.name = G.slug(this.value); persist(); refreshChecks(); });
+$('moreBtn').addEventListener('click', function (e) { e.stopPropagation(); var m = $('moreMenu'); m.hidden = !m.hidden; this.setAttribute('aria-expanded', String(!m.hidden)); });
+document.addEventListener('click', function () { $('moreMenu').hidden = true; $('moreBtn').setAttribute('aria-expanded', 'false'); });
+$('moreMenu').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  ({
+    blank: function () { var s = G.blankMap(); s.title = 'My Map'; s.name = G.slug(s.title); replaceState(s, 'Blank map ready. Undo brings the old one back.'); setTool('room'); },
+    sample: function () { replaceState(G.sampleMap(), 'Example map loaded.'); },
+    save: saveProject, open: function () { $('openFile').click(); }, radiant: exportRadiant,
+    help: function () { $('guide').hidden = false; }
+  })[b.dataset.act]();
+});
 
-// ---------- checks ----------
+// ---------- checks with one-click fixes ----------
+var FIXES = {
+  spawns: { label: 'Place for me', run: function () { var add = G.autoSpawns(state); if (!add.length) return say('Paint some floor first.'); state.ents = state.ents.concat(add); say('Placed ' + add.length + ' start points.'); } },
+  stuck: { label: 'Fix', run: function () {
+    state.ents = state.ents.filter(function (e) { return G.cellAt(state, Math.floor(e.x), Math.floor(e.y)); }); say('Removed markers that were inside walls.'); } },
+  low: { label: 'Fix', run: function () { state.cells.forEach(function (c) { if (c && c.c - c.f < 96) c.c = c.f + 128; }); say('Raised the low ceilings.'); } }
+};
 function refreshChecks() {
   var notes = G.check(state), ul = $('checks'); ul.innerHTML = '';
-  if (!notes.length) notes = [{ level: 'good', text: 'Looks playable. Export and compile it.' }];
-  notes.slice(0, 8).forEach(function (n) { var li = document.createElement('li'); li.className = n.level; li.textContent = n.text; ul.appendChild(li); });
+  if (!notes.some(function (n) { return n.level === 'bad'; })) notes.unshift({ level: 'good', text: 'Ready to play.' });
+  notes.forEach(function (n) {
+    var li = document.createElement('li'), sp = document.createElement('span'); li.className = n.level; sp.textContent = n.text; li.appendChild(sp);
+    if (n.fix && FIXES[n.fix]) {
+      var b = document.createElement('button'); b.textContent = FIXES[n.fix].label;
+      b.addEventListener('click', function () { snapshot(); FIXES[n.fix].run(); changed(); });
+      li.appendChild(b);
+    }
+    ul.appendChild(li);
+  });
   var count = function (t) { return state.ents.filter(function (e) { return e.type === t; }).length; };
-  $('stats').textContent = G.buildBrushes(state).length + ' brushes · ' + count('imperial') + ' Imperial · ' + count('rebel') + ' Rebel spawns · ' + state.w + '×' + state.h + ' grid of 64u';
+  $('nReb').textContent = count('rebel'); $('nImp').textContent = count('imperial'); $('nLight').textContent = count('light');
+  var open = state.cells.filter(Boolean).length;
+  $('stats').textContent = 'File name ' + state.name + ' · ' + open + ' floor squares · each square is 64 units, about one player wide.';
 }
+$('autoSpawns').addEventListener('click', function () { snapshot(); FIXES.spawns.run(); changed(); });
 
-// ---------- export ----------
+// ---------- play: build the pk3 ----------
 function say(t) { $('msg').textContent = t; }
-function opts() { return { autoLights: $('autoLights').checked, ctfSpawns: $('ctfSpawns').checked }; }
-function readme() {
-  return [
-    state.title + ' (' + state.name + ') - made with MB2 Map Maker', '',
-    'What is inside:',
-    '  maps/' + state.name + '.map      the level, ready for GtkRadiant / JKRadiant / NetRadiant',
-    '  scripts/' + state.name + '.arena  makes the map show up in the MB2 map list', '',
-    'To play it:',
-    '  1. Open maps/' + state.name + '.map in Radiant (set up for Jedi Academy).',
-    '  2. Build > BSP (full / -meta -vis -light). This makes ' + state.name + '.bsp.',
-    '  3. Zip maps/' + state.name + '.bsp and scripts/' + state.name + '.arena into ' + state.name + '.pk3',
-    '     and put it in GameData/MBII.',
-    '  4. In game: /map ' + state.name, '',
-    'Texture names can be changed in the editor under Export > Textures.'
-  ].join('\r\n');
-}
 var downloads = null;
 if (window.claude && window.claude.use) window.claude.use('downloads').then(function (d) { downloads = d; }, function () {});
-$('exportZip').addEventListener('click', function () {
-  var bad = G.check(state).filter(function (n) { return n.level === 'bad'; });
-  if (bad.length) say('Heads up: ' + bad[0].text + ' Exporting anyway.');
-  var zip = new JSZip();
-  zip.file('maps/' + state.name + '.map', G.generateMap(state, opts()));
-  zip.file('scripts/' + state.name + '.arena', G.generateArena(state));
-  zip.file('README.txt', readme());
-  zip.generateAsync({ type: 'blob' }).then(function (blob) {
-    if (downloads) {
-      return downloads.save({ filename: state.name + '.zip', data: blob }).then(function () { say('Saved ' + state.name + '.zip.'); }, function (err) {
-        if (err && err.code === 'declined') say('Save cancelled.'); else showFallback('Saving files is not available here, so the .map text is below.');
-      });
+function saveFile(name, data, type) {
+  if (downloads) return downloads.save({ filename: name, data: data });
+  var a = document.createElement('a'); a.href = URL.createObjectURL(data instanceof Blob ? data : new Blob([data], { type: type || 'application/octet-stream' })); a.download = name; a.click();
+  return Promise.resolve();
+}
+function levelshot() {
+  var c = document.createElement('canvas'); c.width = 512; c.height = 384;
+  var x = c.getContext('2d'), z = Math.min(480 / state.w, 352 / state.h);
+  drawPlan(x, { z: z, ox: (512 - z * state.w) / 2, oy: (384 - z * state.h) / 2 });
+  return c;
+}
+function buildPk3() {
+  var zip = new JSZip(), name = state.name;
+  var result = B.compile(state, {});
+  zip.file('maps/' + name + '.bsp', result.bsp);
+  zip.file('maps/' + name + '.siege', G.generateSiege(state));
+  zip.file('scripts/' + name + '.arena', G.generateArena(state));
+  zip.file('scripts/mb2mm.shader', T.SHADER);
+  var jobs = [T.blob(levelshot()).then(function (b) { zip.file('levelshots/' + name + '.jpg', b); })];
+  result.mesh.shaders.forEach(function (s) {
+    if (s === G.SKY) {
+      T.SKY_FACES.forEach(function (f) { jobs.push(T.blob(T.sky(f)).then(function (b) { zip.file('env/mb2mm/sky_' + f + '.jpg', b); })); });
+    } else if (s.indexOf('textures/mb2mm/') === 0) { // the game's own caulk stays untouched
+      var tex = s.split('/').pop();
+      jobs.push(T.blob(T.get(tex)).then(function (b) { zip.file(s + '.jpg', b); }));
     }
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = state.name + '.zip'; a.click();
-    say('Downloading ' + state.name + '.zip. If nothing happens, use Copy .map text.');
   });
+  return Promise.all(jobs).then(function () { return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }); });
+}
+$('play').addEventListener('click', function () {
+  var btn = this;
+  if (!state.cells.some(Boolean)) return say('Paint some floor first.');
+  var added = 0;
+  if (!state.ents.some(function (e) { return e.type === 'rebel'; }) || !state.ents.some(function (e) { return e.type === 'imperial'; })) {
+    snapshot(); var add = G.autoSpawns(state); state.ents = state.ents.concat(add); added = add.length; changed();
+  }
+  btn.disabled = true; btn.classList.add('busy'); btn.textContent = 'Building your map';
+  setTimeout(function () {
+    buildPk3().then(function (pk3) {
+      var outer = new JSZip(), name = state.name;
+      outer.file(name + '.pk3', pk3);
+      outer.file('HOW_TO_PLAY.txt', [
+        state.title + ' - made with MB2 Map Maker', '',
+        '1. Drag ' + name + '.pk3 into your Jedi Academy\\GameData\\MBII folder.',
+        '   (Steam: Steam\\steamapps\\common\\Jedi Academy\\GameData\\MBII)',
+        '2. Start Movie Battles II, press ~ and type:  /map ' + name,
+        '   or host a game and pick "' + state.title + '" from the map list.'
+      ].join('\r\n'));
+      return outer.generateAsync({ type: 'blob' });
+    }).then(function (blob) {
+      return saveFile(state.name + '.zip', blob).then(function () {
+        $('zipName').textContent = state.name + '.zip'; $('pk3Name').textContent = state.name + '.pk3'; $('mapCmd').textContent = '/map ' + state.name;
+        $('install').hidden = false;
+        say((added ? 'Added start points for you. ' : '') + 'Saved ' + state.name + '.zip.');
+      }, function (err) { say(err && err.code === 'declined' ? 'Download cancelled.' : 'This view cannot save files. Open the map maker in its own tab and try again.'); });
+    }).catch(function (e) { say('Something went wrong building the map: ' + e.message); })
+      .then(function () { btn.disabled = false; btn.classList.remove('busy'); btn.textContent = 'Download playable map'; });
+  }, 30);
 });
-function showFallback(t) { var f = $('fallback'); f.hidden = false; f.value = G.generateMap(state, opts()); say(t); }
-$('copyMap').addEventListener('click', function () {
-  var text = G.generateMap(state, opts());
-  if (navigator.clipboard) navigator.clipboard.writeText(text).then(function () { say('Copied. Paste it into a file named ' + state.name + '.map.'); }, function () { showFallback('Select the text below and copy it.'); $('fallback').select(); });
-  else { showFallback('Select the text below and copy it.'); $('fallback').select(); }
-});
-$('saveProject').addEventListener('click', function () {
-  var data = JSON.stringify(state);
-  if (downloads) downloads.save({ filename: state.name + '.json', data: data }).then(function () { say('Project saved.'); }, function () { say('Project not saved. Your work is still kept in this browser.'); });
-  else { var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([data], { type: 'application/json' })); a.download = state.name + '.json'; a.click(); }
-});
-$('openProject').addEventListener('click', function () { $('openFile').click(); });
+$('installOk').addEventListener('click', function () { $('install').hidden = true; });
+function saveProject() {
+  saveFile(state.name + '.json', JSON.stringify(state), 'application/json').then(function () { say('Project saved.'); }, function () { say('Not saved. Your work is still kept in this browser.'); });
+}
+function exportRadiant() {
+  var zip = new JSZip();
+  zip.file('maps/' + state.name + '.map', G.generateMap(state));
+  zip.file('maps/' + state.name + '.siege', G.generateSiege(state));
+  zip.file('scripts/' + state.name + '.arena', G.generateArena(state));
+  zip.generateAsync({ type: 'blob' }).then(function (b) { return saveFile(state.name + '_radiant.zip', b); })
+    .then(function () { say('Saved the Radiant source.'); }, function () { say('Not saved.'); });
+}
 $('openFile').addEventListener('change', function () {
   var f = this.files[0]; if (!f) return;
   f.text().then(function (t) {
     var s = JSON.parse(t); if (!s.cells || !s.w) throw new Error('not a project');
-    snapshot(); state = s; if (!state.themes) state.themes = JSON.parse(JSON.stringify(G.THEMES)); if (!state.sky) state.sky = G.SKY;
-    selected = -1; showEnt(); syncHeader(); fit(); changed(); say('Opened ' + f.name + '.');
-  }).catch(function () { say('That file is not an MB2 Map Maker project (.json).'); });
+    replaceState(s, 'Opened ' + f.name + '.');
+  }).catch(function () { say('That file is not an MB2 Map Maker project.'); });
   this.value = '';
 });
 
-// ---------- 3D preview ----------
-var v3 = $('view3d'), renderer = null, scene, camera, group, orbit = { yaw: .7, pitch: .85, dist: 1 };
+// ---------- 3D view and walk mode ----------
+var view = 'plan', v3 = $('view3d'), renderer = null, scene, camera, group, skybox, dark;
+var orbit = { yaw: .8, pitch: .9, dist: 1 }, walker = { x: 0, y: 0, z: 0, yaw: 0, pitch: 0 }, texCache = {};
+document.querySelectorAll('[data-view]').forEach(function (b) { b.addEventListener('click', function () { setView(b.dataset.view); }); });
+function setView(v) {
+  view = v;
+  document.querySelectorAll('[data-view]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.view === v ? 'true' : 'false'); });
+  cv.hidden = v !== 'plan'; v3.hidden = v === 'plan'; $('walkPad').hidden = v !== 'walk';
+  hint();
+  if (v !== 'plan') { init3d(); resize(); build3d(); if (v === 'walk') startWalk(); }
+  else resize();
+}
 function init3d() {
-  if (!window.THREE) { $('stats').textContent = '3D preview could not load.'; return; }
+  if (renderer || !window.THREE) return;
   renderer = new THREE.WebGLRenderer({ canvas: v3, antialias: true });
   renderer.setPixelRatio(window.devicePixelRatio || 1);
-  scene = new THREE.Scene(); scene.background = new THREE.Color(0x0a0d10);
-  camera = new THREE.PerspectiveCamera(50, 4 / 3, 10, 40000);
-  scene.add(new THREE.HemisphereLight(0xdde8ff, 0x202020, .85));
-  var sun = new THREE.DirectionalLight(0xffffff, .6); sun.position.set(.5, 1, .3); scene.add(sun);
-  var drag3 = null;
-  v3.addEventListener('pointerdown', function (e) { v3.setPointerCapture(e.pointerId); drag3 = { x: e.clientX, y: e.clientY }; });
+  scene = new THREE.Scene();
+  var faces = ['ft', 'bk', 'up', 'dn', 'rt', 'lf'].map(function (f) { return T.sky(f); });
+  skybox = new THREE.CubeTexture(faces); skybox.needsUpdate = true;
+  camera = new THREE.PerspectiveCamera(70, 1, 4, 60000);
+  var d3 = null;
+  v3.addEventListener('pointerdown', function (e) { v3.setPointerCapture(e.pointerId); d3 = { x: e.clientX, y: e.clientY }; });
   v3.addEventListener('pointermove', function (e) {
-    if (!drag3) return;
-    orbit.yaw -= (e.clientX - drag3.x) * .01; orbit.pitch = Math.max(.15, Math.min(1.5, orbit.pitch + (e.clientY - drag3.y) * .01));
-    drag3 = { x: e.clientX, y: e.clientY }; render3d();
+    if (!d3) return;
+    var dx = e.clientX - d3.x, dy = e.clientY - d3.y; d3 = { x: e.clientX, y: e.clientY };
+    if (view === 'orbit') { orbit.yaw -= dx * .008; orbit.pitch = Math.max(.12, Math.min(1.5, orbit.pitch + dy * .008)); }
+    else { walker.yaw -= dx * .006; walker.pitch = Math.max(-1.3, Math.min(1.3, walker.pitch - dy * .006)); }
+    render3d();
   });
-  v3.addEventListener('pointerup', function () { drag3 = null; });
-  v3.addEventListener('wheel', function (e) { e.preventDefault(); orbit.dist = Math.max(.25, Math.min(3, orbit.dist * (e.deltaY < 0 ? .9 : 1.1))); render3d(); }, { passive: false });
+  v3.addEventListener('pointerup', function () { d3 = null; });
+  v3.addEventListener('wheel', function (e) { e.preventDefault(); if (view === 'orbit') { orbit.dist = Math.max(.15, Math.min(3, orbit.dist * (e.deltaY < 0 ? .9 : 1.1))); render3d(); } }, { passive: false });
+}
+function textureFor(name) {
+  if (texCache[name]) return texCache[name];
+  var t = new THREE.CanvasTexture(T.get(name.split('/').pop()));
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return (texCache[name] = t);
 }
 var t3;
-function schedule3d() { clearTimeout(t3); t3 = setTimeout(build3d, 120); }
+function schedule3d() { clearTimeout(t3); t3 = setTimeout(build3d, 250); }
+// The 3D view shows the compiled map itself: same faces, textures and baked lighting as in game.
 function build3d() {
   if (!renderer) return;
   if (group) { scene.remove(group); group.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); }
   group = new THREE.Group();
-  var b = G.bounds(state), S = state.cell, mats = {};
-  function mat(hex) { return mats[hex] || (mats[hex] = new THREE.MeshLambertMaterial({ color: hex })); }
-  function box(x0, y0, x1, y1, z0, z1, color) {
-    var g = new THREE.BoxGeometry(x1 - x0, z1 - z0, y1 - y0), m = new THREE.Mesh(g, mat(color));
-    m.position.set((x0 + x1) / 2, (z0 + z1) / 2, (y0 + y1) / 2); group.add(m);
+  if (state.cells.some(Boolean)) {
+    var mesh = B.compile(state, {}).mesh, byShader = {};
+    mesh.surfaces.forEach(function (s) { (byShader[s.shader] = byShader[s.shader] || []).push(s); });
+    Object.keys(byShader).forEach(function (si) {
+      var name = mesh.shaders[si]; if (name === G.SKY) return; // the sky box shows through
+      var pos = [], uv = [], colr = [], idx = [];
+      byShader[si].forEach(function (s) {
+        var base = pos.length / 3;
+        for (var v = s.firstVert; v < s.firstVert + s.numVerts; v++) {
+          var p = mesh.verts[v];
+          pos.push(p.p[0], p.p[2], -p.p[1]); uv.push(p.st[0], -p.st[1]);
+          colr.push(p.c[0] / 128, p.c[1] / 128, p.c[2] / 128); // the game doubles vertex light (overbright)
+        }
+        for (var k = s.firstIndex; k < s.firstIndex + s.numIndexes; k += 3) idx.push(base + mesh.indexes[k], base + mesh.indexes[k + 2], base + mesh.indexes[k + 1]);
+      });
+      var g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+      g.setIndex(idx);
+      group.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: textureFor(name), vertexColors: true })));
+    });
+    G.entityList(state, {}).forEach(function (e) {
+      var cls = e.pairs[0][1], color = /siegeteam1/.test(cls) ? col('--reb') : /siegeteam2/.test(cls) ? col('--imp') : null;
+      if (!color || view === 'walk') return;
+      var m = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, 64, 12), new THREE.MeshBasicMaterial({ color: color }));
+      m.position.set(e.origin[0], e.origin[2] - 8, -e.origin[1]); group.add(m);
+    });
   }
-  var cellKey = function (i, j) { var c = G.cellAt(state, i, j); return c ? c.f + '|' + c.t : null; };
-  G.mergeRects(0, 0, state.w, state.h, cellKey).forEach(function (r) {
-    var c = G.cellAt(state, r.i, r.j), th = G.themeById(state, c.t);
-    box(r.i * S, r.j * S, (r.i + r.w) * S, (r.j + r.h) * S, b.zMin, c.f, shade(th.color, c.f - 40));
-  });
-  var top = Math.min(b.zMax, b.zMin + 400);
-  G.mergeRects(-1, -1, state.w + 1, state.h + 1, function (i, j) {
-    if (G.cellAt(state, i, j)) return null;
-    for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) { var n = G.cellAt(state, i + di, j + dj); if (n) return n.t; }
-    return null;
-  }).forEach(function (r) {
-    box(r.i * S, r.j * S, (r.i + r.w) * S, (r.j + r.h) * S, b.zMin, top, shade(G.themeById(state, r.key).color, -160));
-  });
-  state.ents.forEach(function (e) {
-    var c = G.cellAt(state, Math.floor(e.x), Math.floor(e.y)) || { f: 0, c: 128 };
-    var h = e.type === 'light' ? 16 : 64, z = e.type === 'light' ? Math.min(c.c, top) - 40 : c.f;
-    var m = new THREE.Mesh(new THREE.CylinderGeometry(14, 14, h, 12), new THREE.MeshBasicMaterial({ color: ENT_COLOR[e.type] }));
-    m.position.set(e.x * S, z + h / 2, e.y * S); group.add(m);
-  });
   scene.add(group); render3d();
 }
 function render3d() {
-  if (!renderer) return;
+  if (!renderer || view === 'plan') return;
   var r = v3.getBoundingClientRect(); if (!r.width) return;
   renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
-  var S = state.cell, cx = state.w * S / 2, cz = state.h * S / 2, d = Math.max(state.w, state.h) * S * 1.1 * orbit.dist;
-  camera.position.set(cx + Math.cos(orbit.yaw) * Math.cos(orbit.pitch) * d, Math.sin(orbit.pitch) * d, cz + Math.sin(orbit.yaw) * Math.cos(orbit.pitch) * d);
-  camera.lookAt(cx, 0, cz); renderer.render(scene, camera);
+  scene.background = view === 'walk' ? skybox : (dark = dark || new THREE.Color(0x12171c));
+  if (view === 'orbit') {
+    var S = state.cell, d = Math.max(state.w, state.h) * S * 0.95 * orbit.dist, cx = 0, cz = 0;
+    camera.position.set(cx + Math.cos(orbit.yaw) * Math.cos(orbit.pitch) * d, Math.sin(orbit.pitch) * d, cz + Math.sin(orbit.yaw) * Math.cos(orbit.pitch) * d);
+    camera.lookAt(cx, 0, cz);
+  } else {
+    camera.position.set(walker.x, walker.z, -walker.y);
+    camera.rotation.order = 'YXZ'; camera.rotation.set(walker.pitch, walker.yaw - Math.PI / 2, 0);
+  }
+  renderer.render(scene, camera);
 }
+// walking: 64-unit grid collision, climb up to 40 units, fall down any height
+function startWalk() {
+  var e = state.ents.find(function (x) { return x.type === 'rebel' || x.type === 'imperial'; });
+  var spot = e ? { x: e.x, y: e.y } : null;
+  if (!spot) { for (var k = 0; k < state.cells.length && !spot; k++) if (state.cells[k]) spot = { x: k % state.w + .5, y: Math.floor(k / state.w) + .5 }; }
+  if (!spot) return;
+  walker.x = (spot.x - state.w / 2) * state.cell; walker.y = (state.h / 2 - spot.y) * state.cell;
+  var c = G.cellAt(state, Math.floor(spot.x), Math.floor(spot.y)); walker.z = c.f + 56; walker.yaw = (e ? e.angle || 0 : 0) * Math.PI / 180; walker.pitch = 0;
+  if (!walking) { walking = true; requestAnimationFrame(step); }
+}
+var walking = false, pad = {}, last = 0;
+document.querySelectorAll('[data-move]').forEach(function (b) {
+  var on = function (e) { e.preventDefault(); pad[b.dataset.move] = true; }, off = function () { pad[b.dataset.move] = false; };
+  b.addEventListener('pointerdown', on); b.addEventListener('pointerup', off); b.addEventListener('pointerleave', off); b.addEventListener('pointercancel', off);
+});
+function cellUnder(x, y) { var p = G.toCell(state, x, y); return G.cellAt(state, p.i, p.j); }
+function step(t) {
+  if (view !== 'walk') { walking = false; return; }
+  var dt = Math.min(0.05, (t - last) / 1000 || 0); last = t;
+  var f = (keys.w || keys.arrowup || pad.f ? 1 : 0) - (keys.s || keys.arrowdown || pad.b ? 1 : 0);
+  var s = (keys.d || keys.arrowright || pad.r ? 1 : 0) - (keys.a || keys.arrowleft || pad.l ? 1 : 0);
+  if (f || s) {
+    var sp = 320 * dt, cos = Math.cos(walker.yaw), sin = Math.sin(walker.yaw);
+    var dx = (cos * f + sin * s) * sp, dy = (sin * f - cos * s) * sp;
+    var here = cellUnder(walker.x, walker.y), feet = walker.z - 56;
+    [[dx, 0], [0, dy]].forEach(function (m) {
+      var nx = walker.x + m[0], ny = walker.y + m[1], c = cellUnder(nx + Math.sign(m[0]) * 16, ny + Math.sign(m[1]) * 16);
+      if (c && c.f - feet <= 40 && c.c - Math.max(c.f, feet) >= 64) { walker.x = nx; walker.y = ny; }
+    });
+  }
+  var under = cellUnder(walker.x, walker.y);
+  if (under) {
+    var target = under.f + 56;
+    walker.z = walker.z > target ? Math.max(target, walker.z - 600 * dt) : target;
+  }
+  render3d();
+  requestAnimationFrame(step);
+}
+
+// ---------- first visit ----------
+$('guideOk').addEventListener('click', function () { $('guide').hidden = true; store(GUIDE_KEY, '1'); });
+$('guideBlank').addEventListener('click', function () {
+  $('guide').hidden = true; store(GUIDE_KEY, '1');
+  var s = G.blankMap(); s.title = 'My Map'; s.name = G.slug(s.title); replaceState(s, 'Blank map ready. Pick Floor and drag on the grid.'); setTool('room');
+});
 
 // ---------- boot ----------
 state = load();
-if (!state.themes) state.themes = JSON.parse(JSON.stringify(G.THEMES));
-if (!state.sky) state.sky = G.SKY;
-syncHeader();
-init3d();
-window.addEventListener('resize', function () { resize(); render3d(); });
-requestAnimationFrame(function () { resize(); fit(); drawPlan(); refreshChecks(); build3d(); });
+if (!state.name) state.name = G.slug(state.title);
+$('mapTitle').value = state.title;
+syncBrush(); syncHistory(); setTool('room');
+if (!store(GUIDE_KEY)) $('guide').hidden = false;
+window.addEventListener('resize', resize);
+requestAnimationFrame(function () { resize(); fit(); drawPlan(); refreshChecks(); setTimeout(paintSwatches, 50); });
 })();
 </script>

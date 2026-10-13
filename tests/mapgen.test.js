@@ -22,12 +22,14 @@ parsePlanes(box).forEach(([a, b, c]) => {
 // 2. A sample layout produces a sane map.
 const w = 8, h = 6, cells = new Array(w * h).fill(null);
 for (let j = 1; j < 5; j++) for (let i = 1; i < 7; i++) cells[j * w + i] = { f: i < 4 ? 0 : 32, c: 256, t: 'imperial', sky: i === 6 };
+// extra spawns fill free cells up to the limit the room allows
 const state = { name: 'mb2_test', title: 'Test', cell: 64, w, h, cells, ents: [
   { type: 'imperial', x: 1.5, y: 1.5, angle: 0 }, { type: 'rebel', x: 5.5, y: 3.5, angle: 180 }
 ] };
 const map = G.generateMap(state);
 assert(map.includes('"classname" "worldspawn"'));
-assert(map.includes('info_player_imperial') && map.includes('team_CTF_blueplayer'));
+assert(map.includes('info_player_siegeteam2') && map.includes('info_player_siegeteam1') && map.includes('info_player_intermission'));
+assert(G.generateSiege(state).includes('team1\tRebels'));
 assert.strictEqual((map.match(/\{/g) || []).length, (map.match(/\}/g) || []).length, 'braces balance');
 const brushes = G.buildBrushes(state);
 brushes.forEach(b => assert.strictEqual(parsePlanes(b).length, 6));
@@ -46,6 +48,6 @@ for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) if (G.cellAt(state, i, j
     assert(G.cellAt(state, i + di, j + dj) || covered(i + di, j + dj), `leak next to ${i},${j}`);
 
 // 4. Checks flag a missing team.
-assert(G.check({ ...state, ents: [] }).some(n => /Imperial/.test(n.text)));
-assert(G.generateArena(state).includes('map\t\t"mb2_test"'));
+assert(G.check({ ...state, ents: [] }).some(n => /Imperials/.test(n.text) && n.fix === 'spawns'));
+assert(G.generateArena(state).includes('map\t\t"mb2_test"') && G.generateArena(state).includes('"MB"'));
 console.log('mapgen: all checks passed (' + brushes.length + ' brushes)');
